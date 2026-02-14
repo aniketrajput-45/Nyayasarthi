@@ -1,0 +1,164 @@
+import React, { useState, useRef, useEffect } from 'react';
+import { useAuth } from '../hooks/useAuth';
+import { MessageCircle, X, Send, AlertCircle } from 'lucide-react';
+
+interface ChatbotMessage {
+  id: string;
+  type: 'user' | 'bot';
+  text: string;
+}
+
+export const Chatbot: React.FC = () => {
+  const { token } = useAuth();
+  const [isOpen, setIsOpen] = useState(false);
+  const [messages, setMessages] = useState<ChatbotMessage[]>([]);
+  const [input, setInput] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  };
+
+  useEffect(() => {
+    scrollToBottom();
+  }, [messages]);
+
+  const handleSendMessage = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!input.trim()) return;
+
+    const userMessage: ChatbotMessage = {
+      id: Date.now().toString(),
+      type: 'user',
+      text: input,
+    };
+
+    setMessages((prev) => [...prev, userMessage]);
+    setInput('');
+    setLoading(true);
+    setError('');
+
+    try {
+      const response = await fetch(`${import.meta.env.VITE_API_URL}/chatbot/ask`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ query: input }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to get response');
+      }
+
+      const data = await response.json();
+      const botMessage: ChatbotMessage = {
+        id: (Date.now() + 1).toString(),
+        type: 'bot',
+        text: data.response,
+      };
+
+      setMessages((prev) => [...prev, botMessage]);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Error getting response');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+    if (!isOpen) {
+    return (
+      <button
+        onClick={() => setIsOpen(true)}
+        className="fixed bottom-8 right-8 bg-blue-600 hover:bg-blue-700 text-white rounded-full p-4 shadow-lg transition flex items-center justify-center z-40"
+        title="Open chatbot"
+      >
+        <MessageCircle size={24} />
+      </button>
+    );
+  }
+
+   return (
+    <div className="fixed bottom-8 right-8 w-96 bg-white rounded-lg shadow-2xl flex flex-col h-[600px] z-50">
+      <div className="bg-blue-600 text-white p-4 flex items-center justify-between rounded-t-lg">
+        <h3 className="font-semibold">Legal Assistant</h3>
+        <button
+          onClick={() => setIsOpen(false)}
+          className="hover:bg-blue-700 p-1 rounded transition"
+        >
+          <X size={20} />
+        </button>
+      </div>
+
+<div className="flex-1 overflow-y-auto p-4 space-y-4 bg-slate-50">
+        {messages.length === 0 ? (
+          <div className="flex items-center justify-center h-full text-center">
+            <div className="text-slate-600">
+              <MessageCircle className="w-12 h-12 text-slate-400 mx-auto mb-3" />
+              <p className="text-sm">Ask me anything about legal matters</p>
+            </div>
+          </div>
+        ) : (
+          <>
+            {messages.map((msg) => (
+              <div
+                key={msg.id}
+                className={`flex ${msg.type === 'user' ? 'justify-end' : 'justify-start'}`}
+              >
+                <div
+                  className={`max-w-xs px-4 py-2 rounded-lg text-sm ${
+                    msg.type === 'user'
+                      ? 'bg-blue-600 text-white'
+                      : 'bg-white text-slate-900 border border-slate-200'
+                  }`}
+                >
+                  {msg.text}
+                </div>
+              </div>
+            ))}
+             {loading && (
+              <div className="flex justify-start">
+                <div className="bg-white text-slate-900 border border-slate-200 px-4 py-2 rounded-lg text-sm">
+                  <div className="flex gap-2">
+                    <div className="w-2 h-2 bg-slate-400 rounded-full animate-bounce"></div>
+                    <div className="w-2 h-2 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
+                    <div className="w-2 h-2 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
+                  </div>
+                </div>
+              </div>
+            )}
+            <div ref={messagesEndRef} />
+          </>
+        )}
+      </div>
+
+      {error && (
+        <div className="px-4 py-2 bg-red-50 border border-red-200 text-red-700 text-sm flex items-start gap-2">
+          <AlertCircle size={16} className="flex-shrink-0 mt-0.5" />
+          {error}
+        </div>
+      )}
+
+      <form onSubmit={handleSendMessage} className="p-4 border-t border-slate-200 flex gap-2">
+        <input
+          type="text"
+          value={input}
+          onChange={(e) => setInput(e.target.value)}
+          placeholder="Ask me..."
+          className="flex-1 px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+          disabled={loading}
+        />
+        <button
+          type="submit"
+          disabled={loading}
+          className="bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white p-2 rounded-lg transition flex items-center justify-center"
+        >
+          <Send size={18} />
+        </button>
+      </form>
+    </div>
+  );
+};
