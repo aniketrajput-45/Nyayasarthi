@@ -46,6 +46,11 @@ const caseSchema = new mongoose.Schema({
     enum: ['low', 'medium', 'high', 'urgent'],
     default: 'medium',
   },
+  // ADD THIS NEW FIELD:
+  isProBono: {
+    type: Boolean,
+    default: false,
+  },
   location: String,
   incidentDate: Date,
   documents: [
@@ -66,6 +71,14 @@ const caseSchema = new mongoose.Schema({
         type: mongoose.Schema.Types.ObjectId,
         ref: 'User',
       },
+      notes: String,
+    },
+  ],
+  hearings: [
+    {
+      date: Date,
+      title: String, // e.g., "Bail Hearing"
+      location: String, // e.g., "High Court, Room 4"
       notes: String,
     },
   ],
