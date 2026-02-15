@@ -1,11 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { useAuth } from "../hooks/useAuth";
 import { useNavigate } from "react-router-dom";
-import { FileText, AlertCircle, Heart, Download, Shield } from "lucide-react";
-import { AssignModal } from "../components/AssignModal";
-// If you opted for the simple PDF fix, keep this import.
-// If you removed the file, comment this out and use the inline function I gave earlier.
-import { generateFIR } from "../utils/generatePDF";
+import { FileText, AlertCircle, CheckCircle, ArrowRight, Gavel, Clock } from "lucide-react"; 
 
 interface Case {
   _id: string;
@@ -14,10 +10,8 @@ interface Case {
   status: string;
   type: string;
   createdAt: string;
-  priority: string;
-  isProBono: boolean; // This is the key field
-  assignedLawyer?: string;
-  assignedPolice?: string;
+  isProBono: boolean;
+  assignedLawyer?: any; // Can be string ID or populated Object
 }
 
 export const Cases: React.FC = () => {
@@ -25,11 +19,6 @@ export const Cases: React.FC = () => {
   const navigate = useNavigate();
   const [cases, setCases] = useState<Case[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
-
-  // Modal State
-  const [assignModalOpen, setAssignModalOpen] = useState(false);
-  const [selectedCaseId, setSelectedCaseId] = useState("");
 
   useEffect(() => {
     const fetchCases = async () => {
@@ -37,14 +26,9 @@ export const Cases: React.FC = () => {
         const response = await fetch(`${import.meta.env.VITE_API_URL}/cases`, {
           headers: { Authorization: `Bearer ${token}` },
         });
-
-        if (response.ok) {
-          setCases(await response.json());
-        } else {
-          setError("Failed to fetch cases");
-        }
+        if (response.ok) setCases(await response.json());
       } catch (err) {
-        setError(err instanceof Error ? err.message : "Error fetching cases");
+        console.error("Error fetching cases:", err);
       } finally {
         setLoading(false);
       }
@@ -52,242 +36,213 @@ export const Cases: React.FC = () => {
     fetchCases();
   }, [token]);
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case "filed":
-        return "bg-yellow-100 text-yellow-700 border-yellow-200";
-      case "under-investigation":
-        return "bg-blue-100 text-blue-700 border-blue-200";
-      case "in-court":
-        return "bg-purple-100 text-purple-700 border-purple-200";
-      case "resolved":
-        return "bg-green-100 text-green-700 border-green-200";
-      default:
-        return "bg-slate-100 text-slate-700";
+  // --- HELPER: SAFELY GET LAWYER ID ---
+  // This fixes the "Vanishing Case" bug by handling both Objects and Strings
+  const getAssignedId = (assignedLawyer: any) => {
+    if (!assignedLawyer) return null;
+    if (typeof assignedLawyer === 'string') return assignedLawyer;
+    return assignedLawyer._id; // If it's an object (populated)
+  };
+
+  const myUserId = user?.userId;
+
+  // 1. Available Cases (Marketplace) - No lawyer assigned yet
+  const availableCases = cases.filter(c => !getAssignedId(c.assignedLawyer));
+
+  // 2. My Drafts (My Desk) - Assigned to me AND status is 'pending_lawyer'
+  const myDrafts = cases.filter(c => {
+     const lawyerId = getAssignedId(c.assignedLawyer);
+     return lawyerId === myUserId && c.status === 'pending_lawyer';
+  });
+
+  // 3. My Active Cases (In Court) - Assigned to me AND status is NOT 'pending_lawyer'
+  const myActiveCases = cases.filter(c => {
+     const lawyerId = getAssignedId(c.assignedLawyer);
+     return lawyerId === myUserId && c.status !== 'pending_lawyer';
+  });
+
+  // --- ACTIONS ---
+  const handleClaim = async (caseId: string) => {
+    if(confirm("Accept this case? It will move to your 'Drafts' for review.")) {
+        try {
+          const res = await fetch(`${import.meta.env.VITE_API_URL}/cases/${caseId}/claim-lawyer`, {
+            method: 'PUT',
+            headers: { Authorization: `Bearer ${token}` }
+          });
+          if (res.ok) window.location.reload();
+        } catch (err) { console.error(err); }
     }
   };
 
-  if (loading)
-    return (
-      <div className="p-8 flex justify-center">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-      </div>
-    );
-  if (error)
-    return (
-      <div className="p-8 text-red-600 flex gap-2">
-        <AlertCircle /> {error}
-      </div>
-    );
+  const handleSubmitToCourt = async (caseId: string) => {
+    if(confirm("CONFIRM: Submit this case to the Judge?\n\nThis will officially start the statutory timer (BNSS).")) {
+       try {
+         const res = await fetch(`${import.meta.env.VITE_API_URL}/cases/${caseId}/submit-to-court`, {
+           method: 'PUT',
+           headers: { Authorization: `Bearer ${token}` }
+         });
+         if(res.ok) window.location.reload();
+       } catch (err) { console.error(err); }
+    }
+  };
+
+  if (loading) return <div className="p-8 text-center text-slate-500">Loading registry...</div>;
 
   return (
     <div className="p-8 bg-slate-50 min-h-screen">
       <div className="max-w-7xl mx-auto">
-        <div className="flex justify-between items-center mb-8">
+        
+        {/* PAGE HEADER */}
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
           <div>
-            <h2 className="text-3xl font-bold text-slate-900">
-              {user?.role === "citizen" ? "My Cases" : "Case Management"}
-            </h2>
+            <h2 className="text-3xl font-bold text-slate-900">Case Registry</h2>
             <p className="text-slate-500 mt-1">
-              Manage and track all legal proceedings
+              {user?.role === 'lawyer' ? 'Find new clients and manage your case filings.' : 'View all public legal cases.'}
             </p>
           </div>
-
           {user?.role === "citizen" && (
-            <button
-              onClick={() => navigate("/file-case")}
-              className="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-lg font-medium shadow-sm transition-all flex items-center gap-2"
-            >
-              <FileText size={18} /> File New Case
+            <button onClick={() => navigate("/file-case")} className="bg-blue-600 text-white px-5 py-2.5 rounded-lg font-medium flex items-center gap-2 shadow-lg shadow-blue-200 hover:bg-blue-700 transition">
+              <FileText size={18} /> File New Complaint
             </button>
           )}
         </div>
 
-        {cases.length === 0 ? (
-          <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-12 text-center">
-            <div className="bg-slate-50 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
-              <FileText className="w-8 h-8 text-slate-400" />
+        {/* --- SECTION 1: MY DRAFTS (LAWYER ONLY) --- */}
+        {user?.role === 'lawyer' && myDrafts.length > 0 && (
+          <div className="mb-10 animate-in fade-in slide-in-from-top-4 duration-500">
+            <div className="bg-amber-50 border border-amber-200 rounded-xl p-6 shadow-sm">
+              <h3 className="text-lg font-bold text-amber-900 flex items-center gap-2 mb-4">
+                <AlertCircle className="text-amber-600" /> Action Required: Your Drafts ({myDrafts.length})
+              </h3>
+              <p className="text-sm text-amber-700 mb-4">You have accepted these cases. Review them and submit to the Judge to start the legal process.</p>
+              
+              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                {myDrafts.map(c => (
+                  <div key={c._id} className="bg-white p-5 rounded-lg shadow-sm border-l-4 border-amber-400">
+                    <div className="flex justify-between items-start mb-2">
+                       <span className="text-xs font-mono text-slate-400">{c.caseNumber}</span>
+                       <span className="text-[10px] bg-amber-100 text-amber-800 px-2 py-0.5 rounded font-bold uppercase">Draft</span>
+                    </div>
+                    <h4 className="font-bold text-slate-900 line-clamp-1" title={c.title}>{c.title}</h4>
+                    <p className="text-xs text-slate-500 mt-1 mb-4 flex items-center gap-1">
+                      <Clock size={12}/> Accepted today
+                    </p>
+                    
+                    <div className="flex gap-2">
+                      <button 
+                         onClick={() => navigate(`/case/${c._id}`)}
+                         className="flex-1 bg-slate-50 text-slate-600 py-2 rounded text-xs font-bold hover:bg-slate-100 border border-slate-200"
+                      >
+                        Details
+                      </button>
+                      <button 
+                         onClick={() => handleSubmitToCourt(c._id)}
+                         className="flex-1 bg-slate-900 text-white py-2 rounded text-xs font-bold flex items-center justify-center gap-1 hover:bg-slate-800 shadow-sm"
+                      >
+                         Submit <ArrowRight size={12}/>
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
-            <h3 className="text-lg font-medium text-slate-900">
-              No cases found
-            </h3>
-            <p className="text-slate-500 mt-1">
-              {user?.role === "citizen"
-                ? "Get started by filing a new case."
-                : "No cases have been assigned to you yet."}
-            </p>
-          </div>
-        ) : (
-          <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-            <table className="w-full">
-              <thead className="bg-slate-50 border-b border-slate-200">
-                <tr>
-                  <th className="px-6 py-4 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">
-                    Case No.
-                  </th>
-                  <th className="px-6 py-4 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">
-                    Title & Details
-                  </th>
-                  <th className="px-6 py-4 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">
-                    Type
-                  </th>
-                  <th className="px-6 py-4 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">
-                    Status
-                  </th>
-                  <th className="px-6 py-4 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">
-                    Date
-                  </th>
-                  <th className="px-6 py-4 text-right text-xs font-semibold text-slate-500 uppercase tracking-wider">
-                    Actions
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {cases.map((caseItem) => {
-                  // --- VISUAL LOGIC START ---
-                  const isProBono = caseItem.isProBono;
-                  const rowClass = isProBono
-                    ? "bg-purple-50 border-l-4 border-l-purple-600" // Purple Row & Thick Border
-                    : "hover:bg-slate-50 border-l-4 border-l-transparent"; // Normal Row
-                  // --- VISUAL LOGIC END ---
-
-                  return (
-                    <tr
-                      key={caseItem._id}
-                      className={`transition-all ${rowClass}`}
-                    >
-                      {/* Case Number Column */}
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div
-                          className={`font-mono text-sm ${isProBono ? "text-purple-700 font-bold" : "text-slate-600"}`}
-                        >
-                          {caseItem.caseNumber || "PENDING"}
-                        </div>
-                      </td>
-
-                      {/* Title Column with ICON */}
-                      <td className="px-6 py-4">
-                        <div className="flex items-start gap-3">
-                          <div
-                            className={`mt-0.5 flex-shrink-0 ${isProBono ? "text-pink-600" : "text-slate-400"}`}
-                          >
-                            {/* IF PRO BONO: Show Heart. ELSE: Show File */}
-                            {isProBono ? (
-                              <Heart size={20} fill="currentColor" />
-                            ) : (
-                              <FileText size={20} />
-                            )}
-                          </div>
-                          <div>
-                            <div className="font-medium text-slate-900">
-                              {caseItem.title}
-                            </div>
-                            {isProBono && (
-                              <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-pink-100 text-pink-800 mt-1">
-                                ✨ Pro Bono Case
-                              </span>
-                            )}
-                          </div>
-                        </div>
-                      </td>
-
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <span className="capitalize text-sm text-slate-600 bg-slate-100 px-2 py-1 rounded">
-                          {caseItem.type}
-                        </span>
-                      </td>
-
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <span
-                          className={`px-3 py-1 rounded-full text-xs font-medium border ${getStatusColor(caseItem.status)}`}
-                        >
-                          {caseItem.status}
-                        </span>
-                      </td>
-
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500">
-                        {new Date(caseItem.createdAt).toLocaleDateString()}
-                      </td>
-
-                      <td className="px-6 py-4 whitespace-nowrap text-right text-sm">
-                        <div className="flex justify-end gap-2">
-                          {/* VIEW BUTTON */}
-                          <button
-                            onClick={() => navigate(`/case/${caseItem._id}`)}
-                            className="text-slate-600 hover:text-blue-600 p-2 hover:bg-blue-50 rounded-full transition-colors"
-                            title="View Details"
-                          >
-                            <FileText size={18} />
-                          </button>
-
-                          {/* DOWNLOAD PDF BUTTON */}
-                          <button
-                            onClick={() => generateFIR(caseItem)}
-                            className="text-slate-600 hover:text-green-600 p-2 hover:bg-green-50 rounded-full transition-colors"
-                            title="Download FIR"
-                          >
-                            <Download size={18} />
-                          </button>
-
-                          {/* LAWYER ACTION: Accept ANY Unassigned Case */}
-                          {user?.role === "lawyer" &&
-                            !caseItem.assignedLawyer && (
-                              <button
-                                onClick={async (e) => {
-                                  e.stopPropagation();
-                                  if (
-                                    confirm(
-                                      `Are you sure you want to represent the client in "${caseItem.title}"?`,
-                                    )
-                                  ) {
-                                    await fetch(
-                                      `${import.meta.env.VITE_API_URL}/cases/${caseItem._id}/claim-lawyer`,
-                                      {
-                                        method: "PUT",
-                                        headers: {
-                                          Authorization: `Bearer ${token}`,
-                                        },
-                                      },
-                                    );
-                                    window.location.reload();
-                                  }
-                                }}
-                                className="bg-indigo-600 hover:bg-indigo-700 text-white text-xs px-3 py-1.5 rounded shadow-sm ml-2 flex items-center gap-1"
-                              >
-                                {caseItem.isProBono
-                                  ? "Accept Pro Bono"
-                                  : "Accept Client"}
-                              </button>
-                            )}
-                          {/* JUDGE ASSIGN BUTTON */}
-                          {user?.role === "judge" && (
-                            <button
-                              onClick={() => {
-                                setSelectedCaseId(caseItem._id);
-                                setAssignModalOpen(true);
-                              }}
-                              className="text-purple-600 hover:text-purple-700 font-medium text-sm ml-2 px-3 py-1 bg-purple-50 rounded hover:bg-purple-100"
-                            >
-                              Assign
-                            </button>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
           </div>
         )}
-      </div>
 
-      <AssignModal
-        isOpen={assignModalOpen}
-        onClose={() => setAssignModalOpen(false)}
-        caseId={selectedCaseId}
-        onSuccess={() => window.location.reload()}
-      />
+        {/* --- SECTION 2: CASE MARKETPLACE (AVAILABLE) --- */}
+        <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+          <div className="px-6 py-4 border-b border-slate-100 bg-slate-50 flex justify-between items-center">
+             <h3 className="font-bold text-slate-700 flex items-center gap-2">
+               <Gavel size={18} className="text-slate-400"/>
+               {user?.role === 'lawyer' ? 'New Case Opportunities' : 'Public Registry'}
+             </h3>
+             <span className="text-xs font-medium text-slate-400 bg-white px-2 py-1 rounded border">
+               {availableCases.length} Available
+             </span>
+          </div>
+
+          <table className="w-full">
+            <thead className="bg-slate-50 border-b border-slate-200">
+              <tr>
+                <th className="px-6 py-4 text-left text-xs font-semibold text-slate-500 uppercase">Case Info</th>
+                <th className="px-6 py-4 text-left text-xs font-semibold text-slate-500 uppercase">Type</th>
+                <th className="px-6 py-4 text-left text-xs font-semibold text-slate-500 uppercase">Status</th>
+                <th className="px-6 py-4 text-right text-xs font-semibold text-slate-500 uppercase">Action</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              
+              {/* 1. AVAILABLE CASES */}
+              {availableCases.length === 0 && myActiveCases.length === 0 ? (
+                 <tr>
+                   <td colSpan={4} className="px-6 py-12 text-center text-slate-400 italic">
+                     No new cases available at the moment.
+                   </td>
+                 </tr>
+              ) : (
+                availableCases.map((caseItem) => (
+                  <tr key={caseItem._id} className="hover:bg-slate-50 transition-colors group">
+                    <td className="px-6 py-4">
+                      <div className="font-medium text-slate-900 group-hover:text-blue-600 transition-colors">{caseItem.title}</div>
+                      <div className="text-xs text-slate-500 font-mono mt-0.5">{caseItem.caseNumber}</div>
+                    </td>
+                    <td className="px-6 py-4 capitalize text-sm text-slate-600">
+                      <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-slate-100 text-slate-800">
+                        {caseItem.type}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4">
+                       <span className="bg-blue-50 text-blue-700 px-2 py-1 rounded-full text-xs font-bold border border-blue-100 inline-flex items-center gap-1">
+                          New Request
+                       </span>
+                    </td>
+                    <td className="px-6 py-4 text-right">
+                      <div className="flex justify-end gap-2">
+                         <button 
+                           onClick={() => navigate(`/case/${caseItem._id}`)} 
+                           className="p-2 hover:bg-slate-100 rounded-lg text-slate-500 text-xs font-medium border border-transparent hover:border-slate-200"
+                         >
+                           View
+                         </button>
+                         {user?.role === 'lawyer' && (
+                            <button onClick={() => handleClaim(caseItem._id)} className="bg-indigo-600 hover:bg-indigo-700 text-white text-xs px-4 py-2 rounded-lg font-medium shadow-sm transition-transform active:scale-95">
+                              Accept Case
+                            </button>
+                         )}
+                      </div>
+                    </td>
+                  </tr>
+                ))
+              )}
+
+              {/* 2. MY ACTIVE CASES (Shown as Read-Only Reference) */}
+              {user?.role === 'lawyer' && myActiveCases.length > 0 && (
+                 <>
+                   <tr className="bg-slate-50/80 border-t-2 border-slate-100">
+                     <td colSpan={4} className="px-6 py-2 text-xs font-bold text-slate-400 uppercase tracking-wider">
+                       Your Active Cases (Filed in Court)
+                     </td>
+                   </tr>
+                   {myActiveCases.map((caseItem) => (
+                     <tr key={caseItem._id} className="bg-slate-50/30 opacity-75 hover:opacity-100 transition-opacity">
+                        <td className="px-6 py-4">
+                          <div className="font-medium text-slate-600">{caseItem.title}</div>
+                          <span className="text-[10px] text-green-600 flex items-center gap-1 font-medium mt-0.5"><CheckCircle size={10}/> Assigned to you</span>
+                        </td>
+                        <td className="px-6 py-4 text-sm text-slate-400">{caseItem.type}</td>
+                        <td className="px-6 py-4"><span className="text-xs text-slate-500 font-medium bg-slate-100 px-2 py-1 rounded">Processing</span></td>
+                        <td className="px-6 py-4 text-right">
+                           <button onClick={() => navigate(`/case/${caseItem._id}`)} className="text-blue-600 text-xs font-bold hover:underline">View Progress</button>
+                        </td>
+                     </tr>
+                   ))}
+                 </>
+              )}
+
+            </tbody>
+          </table>
+        </div>
+      </div>
     </div>
   );
 };
