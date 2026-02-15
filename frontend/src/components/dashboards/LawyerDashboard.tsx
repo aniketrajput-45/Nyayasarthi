@@ -3,7 +3,7 @@ import { useAuth } from '../../hooks/useAuth';
 import { useNavigate } from 'react-router-dom';
 import { 
   Briefcase, Gavel, Clock, TrendingUp, Calendar, 
-  FileText, Bell, Plus, Search, Heart, X, CheckCircle
+  Bell, Plus, X, CheckCircle
 } from 'lucide-react';
 
 interface Case {
@@ -13,7 +13,7 @@ interface Case {
   category: string;
   location: string;
   isProBono: boolean;
-  assignedLawyer?: string;
+  assignedLawyer?: any; // Changed to any to handle populated object
   createdAt: string;
   status: string;
   hearings?: any[];
@@ -31,7 +31,6 @@ interface Hearing {
 export const LawyerDashboard: React.FC = () => {
   const { user, token } = useAuth();
   const navigate = useNavigate();
-  const [proBonoCases, setProBonoCases] = useState<Case[]>([]);
   const [activeCases, setActiveCases] = useState<Case[]>([]);
   const [upcomingHearings, setUpcomingHearings] = useState<Hearing[]>([]);
   const [loading, setLoading] = useState(true);
@@ -39,6 +38,12 @@ export const LawyerDashboard: React.FC = () => {
   // Modal State
   const [isScheduleOpen, setIsScheduleOpen] = useState(false);
   const [hearingForm, setHearingForm] = useState({ caseId: '', title: '', date: '', location: '' });
+
+  // --- HELPER TO SAFELY EXTRACT IDs ---
+  const getID = (entity: any) => {
+    if (!entity) return null;
+    return typeof entity === 'string' ? entity : entity._id; 
+  };
 
   useEffect(() => {
     const fetchData = async () => {
@@ -49,15 +54,17 @@ export const LawyerDashboard: React.FC = () => {
         
         if (res.ok) {
           const allCases: Case[] = await res.json();
-          
-          // 1. Pro Bono Logic (Unassigned & Pro Bono)
-          setProBonoCases(allCases.filter(c => c.isProBono && !c.assignedLawyer));
-          
-          // 2. Active Cases Logic (Assigned to Me)
-          const myCases = allCases.filter(c => c.assignedLawyer === user?.userId && c.status !== 'resolved');
+          const myId = user?.userId || user?._id;
+
+          // FIX: Safely compare the populated lawyer object ID with your user ID
+          const myCases = allCases.filter(c => {
+            const lawyerId = getID(c.assignedLawyer);
+            return lawyerId === myId && c.status !== 'resolved';
+          });
+
           setActiveCases(myCases);
 
-          // 3. Extract Hearings
+          // Extract Hearings
           const hearings: Hearing[] = [];
           myCases.forEach(c => {
             if (c.hearings) {
