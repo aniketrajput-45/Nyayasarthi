@@ -29,6 +29,7 @@ const caseSchema = new mongoose.Schema({
     enum: ['low', 'medium', 'high', 'urgent'],
     default: 'medium',
   },
+
   
   // --- AI INTEGRATION FIELDS ---
   bnsSection: { type: String, default: null },
@@ -41,9 +42,10 @@ const caseSchema = new mongoose.Schema({
   shareWithLegalAid: { type: Boolean, default: false },
   
   // --- BNSS TIMELINE MANAGEMENT ---
+  // Changed to optional so the middleware can calculate it automatically if missing
   deadlineDate: { 
     type: Date, 
-    required: true 
+    required: false 
   },
 
   location: String,
@@ -112,7 +114,29 @@ const caseSchema = new mongoose.Schema({
     givenBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
     givenAt: Date,
   },
-
 }, { timestamps: true });
+
+// --- AUTOMATED DEADLINE FEATURE ---
+// This calculates the deadline automatically before saving if one isn't provided
+caseSchema.pre('save', function(next) {
+  if (!this.deadlineDate) {
+    const timelineRules = {
+      civil: 90,
+      criminal: 60,
+      cyber: 45,
+      corporate: 120,
+      commercial: 90,
+      family: 60,
+      property: 90,
+      other: 60
+    };
+    
+    const daysToSolve = timelineRules[this.type] || 60; 
+    const deadline = new Date();
+    deadline.setDate(deadline.getDate() + daysToSolve);
+    this.deadlineDate = deadline;
+  }
+  next();
+});
 
 export default mongoose.model('Case', caseSchema);

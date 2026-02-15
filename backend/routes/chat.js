@@ -1,8 +1,114 @@
 import express from 'express';
 import { ChatMessage, ChatRoom } from '../models/Chat.js';
+import Case from '../models/Case.js';
 import { verifyToken } from '../middleware/auth.js';
 
 const router = express.Router();
+
+// ----- Case-based chat (citizen + lawyer see same thread per case) -----
+
+// Get or create chat room for a case (user must be filedBy or assignedLawyer)
+router.get('/case/:caseId/room', verifyToken, async (req, res) => {
+  try {
+    const caseDoc = await Case.findById(req.params.caseId);
+    if (!caseDoc) return res.status(404).json({ message: 'Case not found' });
+
+    const userId = req.user.userId;
+    const isCitizen = caseDoc.filedBy && caseDoc.filedBy.toString() === userId;
+    const isLawyer = caseDoc.assignedLawyer && caseDoc.assignedLawyer.toString() === userId;
+    if (!isCitizen && !isLawyer) {
+      return res.status(403).json({ message: 'You do not have access to this case chat' });
+    }
+
+    let room = await ChatRoom.findOne({ caseId: req.params.caseId });
+    if (!room) {
+      room = new ChatRoom({
+        caseId: req.params.caseId,
+        participant1: caseDoc.filedBy,
+        participant2: caseDoc.assignedLawyer || null,
+        lastMessage: null,
+        lastMessageTime: null,
+      });
+      await room.save();
+    }
+    res.json(room);
+  } catch (error) {
+    res.status(500).json({ message: 'Error getting case chat room', error: error.message });
+  }
+});
+
+// Get messages for a case chat
+router.get('/case/:caseId/messages', verifyToken, async (req, res) => {
+  try {
+    const caseDoc = await Case.findById(req.params.caseId);
+    if (!caseDoc) return res.status(404).json({ message: 'Case not found' });
+
+    const userId = req.user.userId;
+    const isCitizen = caseDoc.filedBy && caseDoc.filedBy.toString() === userId;
+    const isLawyer = caseDoc.assignedLawyer && caseDoc.assignedLawyer.toString() === userId;
+    if (!isCitizen && !isLawyer) {
+      return res.status(403).json({ message: 'You do not have access to this case chat' });
+    }
+
+    const room = await ChatRoom.findOne({ caseId: req.params.caseId });
+    if (!room) return res.json([]);
+
+    const messages = await ChatMessage.find({ roomId: room._id })
+      .populate('senderId', 'fullName email')
+      .sort({ createdAt: 1 })
+      .limit(200);
+    res.json(messages);
+  } catch (error) {
+    res.status(500).json({ message: 'Error fetching messages', error: error.message });
+  }
+});
+
+// Send message in a case chat
+router.post('/case/:caseId/message', verifyToken, async (req, res) => {
+  try {
+    const { message } = req.body;
+    if (!message || typeof message !== 'string' || !message.trim()) {
+      return res.status(400).json({ message: 'Message is required' });
+    }
+
+    const caseDoc = await Case.findById(req.params.caseId);
+    if (!caseDoc) return res.status(404).json({ message: 'Case not found' });
+
+    const userId = req.user.userId;
+    const isCitizen = caseDoc.filedBy && caseDoc.filedBy.toString() === userId;
+    const isLawyer = caseDoc.assignedLawyer && caseDoc.assignedLawyer.toString() === userId;
+    if (!isCitizen && !isLawyer) {
+      return res.status(403).json({ message: 'You do not have access to this case chat' });
+    }
+
+    let room = await ChatRoom.findOne({ caseId: req.params.caseId });
+    if (!room) {
+      room = new ChatRoom({
+        caseId: req.params.caseId,
+        participant1: caseDoc.filedBy,
+        participant2: caseDoc.assignedLawyer || null,
+      });
+      await room.save();
+    }
+
+    const newMessage = new ChatMessage({
+      roomId: room._id,
+      senderId: userId,
+      message: message.trim(),
+    });
+    await newMessage.save();
+
+    await ChatRoom.findByIdAndUpdate(room._id, {
+      lastMessage: message.trim(),
+      lastMessageTime: new Date(),
+    });
+
+    const populated = await ChatMessage.findById(newMessage._id).populate('senderId', 'fullName email');
+    res.status(201).json(populated);
+  } catch (error) {
+    res.status(500).json({ message: 'Error sending message', error: error.message });
+  }
+});
 
 // Get or create chat room
 router.post('/room', verifyToken, async (req, res) => {
