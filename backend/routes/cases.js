@@ -22,7 +22,6 @@ router.post('/file', verifyToken, checkRole(['citizen']), async (req, res) => {
 
     const caseNumber = await generateCaseNumber();
 
-    // Initial Deadline (Will be reset when Lawyer submits to court)
     const timelineRules = {
       civil: 90,
       criminal: 60,
@@ -43,11 +42,7 @@ router.post('/file', verifyToken, checkRole(['citizen']), async (req, res) => {
       location,
       incidentDate,
       documents: documents || [],
-      
-      // --- CHANGE 1: START AS PENDING ---
       status: 'pending_lawyer', 
-      // ----------------------------------
-
       isProBono: isProBono || false,
       isAnonymous: isAnonymous || false,
       shareWithLegalAid: shareWithLegalAid || false,
@@ -68,7 +63,7 @@ router.post('/file', verifyToken, checkRole(['citizen']), async (req, res) => {
   }
 });
 
-// 2. Get All Cases -> JUDGE ONLY SEES "FILED" CASES
+// 2. Get All Cases
 router.get('/', verifyToken, async (req, res) => {
   try {
     let query = {};
@@ -79,6 +74,7 @@ router.get('/', verifyToken, async (req, res) => {
     } else if (req.user.role === 'police') {
       query.assignedPolice = req.user.userId;
     } else if (req.user.role === 'lawyer') {
+      
       if (acceptedOnly) {
         // Chat section: only cases this lawyer has accepted
         query.assignedLawyer = req.user.userId;
@@ -91,10 +87,15 @@ router.get('/', verifyToken, async (req, res) => {
         ];
       }
 
+
+      query.$or = [
+        { assignedLawyer: req.user.userId },
+        { assignedLawyer: { $exists: false } },
+        { assignedLawyer: null }
+      ];
+
     } else if (req.user.role === 'judge') {
-      // --- CHANGE 2: FILTER HIDDEN DRAFTS ---
       query.status = { $in: ['filed', 'under-investigation', 'in-court', 'resolved'] };
-      // --------------------------------------
     }
 
     const cases = await Case.find(query)
@@ -152,13 +153,22 @@ router.put('/:id/assign', verifyToken, checkRole(['judge']), async (req, res) =>
   }
 });
 
-// 5. Claim Case (Lawyer)
+// 5. Claim Case (Lawyer) -> FIXED TO RESOLVE 500 ERROR
 router.put('/:caseId/claim-lawyer', verifyToken, checkRole(['lawyer']), async (req, res) => {
   try {
-    const caseData = await Case.findById(req.params.caseId);
-    if (!caseData) return res.status(404).json({ message: 'Case not found' });
+    console.log("Processing claim for Case ID:", req.params.caseId);
 
+    // Using findById with the correct parameter name from the URL
+    const caseData = await Case.findById(req.params.caseId);
+    
+    if (!caseData) {
+      return res.status(404).json({ message: 'Case not found in database' });
+    }
+
+    // Update assignment and status
     caseData.assignedLawyer = req.user.userId;
+    caseData.status = 'pending_lawyer'; 
+
     caseData.timeline.push({
       date: new Date(),
       status: 'In Legal Review',
@@ -167,8 +177,10 @@ router.put('/:caseId/claim-lawyer', verifyToken, checkRole(['lawyer']), async (r
     });
 
     await caseData.save();
-    res.json({ message: 'Case accepted', case: caseData });
+    console.log("Case successfully claimed by Lawyer:", req.user.userId);
+    res.json({ message: 'Case accepted successfully', case: caseData });
   } catch (error) {
+    console.error("Internal Server Error in claim-lawyer:", error);
     res.status(500).json({ message: 'Error claiming case', error: error.message });
   }
 });
@@ -218,16 +230,14 @@ router.post('/:id/hearings', verifyToken, async (req, res) => {
   }
 });
 
-// --- CHANGE 3: NEW ROUTE FOR LAWYER TO SUBMIT TO COURT ---
+// 8. Submit to Court (Lawyer)
 router.put('/:id/submit-to-court', verifyToken, checkRole(['lawyer']), async (req, res) => {
   try {
     const caseItem = await Case.findById(req.params.id);
     if (!caseItem) return res.status(404).json({ message: 'Case not found' });
     
-    // 1. Change Status to 'filed' (Visible to Judge)
     caseItem.status = 'filed';
     
-    // 2. Start the Statutory Timer NOW
     const timelineRules = { civil: 90, criminal: 60, cyber: 45, corporate: 120 };
     const daysToSolve = timelineRules[caseItem.type] || 60;
     
@@ -235,7 +245,6 @@ router.put('/:id/submit-to-court', verifyToken, checkRole(['lawyer']), async (re
     deadline.setDate(deadline.getDate() + daysToSolve);
     caseItem.deadlineDate = deadline;
 
-    // 3. Add to Timeline
     caseItem.timeline.push({
       date: new Date(),
       status: 'filed',
