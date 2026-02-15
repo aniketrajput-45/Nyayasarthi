@@ -28,7 +28,6 @@ export const Cases: React.FC = () => {
   };
 
   // --- HELPER 2: Get Current User ID safely ---
-  // Checks for .userId, ._id, or .id to handle different Auth patterns
   const myUserId = user?.userId || user?._id || user?.id;
 
   useEffect(() => {
@@ -39,8 +38,6 @@ export const Cases: React.FC = () => {
         });
         if (response.ok) {
           const data = await response.json();
-          console.log("Debug: All Fetched Cases:", data); // Check console!
-          console.log("Debug: My User ID:", myUserId);    // Check console!
           setCases(data);
         }
       } catch (err) {
@@ -78,7 +75,7 @@ export const Cases: React.FC = () => {
           if (res.ok) {
             window.location.reload();
           } else {
-            alert("Failed to claim case. Check console for details.");
+            alert("Failed to claim case.");
           }
         } catch (err) { console.error(err); }
     }
@@ -90,95 +87,20 @@ export const Cases: React.FC = () => {
     <div className="p-8 bg-slate-50 min-h-screen">
       <div className="max-w-7xl mx-auto">
         
+        {/* HEADER */}
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
           <div>
             <h2 className="text-3xl font-bold text-slate-900">Case Registry</h2>
             <p className="text-slate-500 mt-1">Manage your legal portfolio.</p>
           </div>
-          {/* Show File Button for Everyone (Lawyers can file cases too) */}
+          {/* Show File Button for Everyone */}
           <button onClick={() => navigate("/file-case")} className="bg-blue-600 text-white px-5 py-2.5 rounded-lg font-medium flex items-center gap-2 hover:bg-blue-700 transition">
             <FileText size={18} /> File New Complaint
           </button>
         </div>
 
-        {/* --- SECTION 1: MY ACTIVE CASELOAD (Lawyer Only) --- */}
-        {user?.role === 'lawyer' && (
-          <div className="mb-12">
-            <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2 mb-4">
-              <Briefcase className="text-blue-600" /> My Active Caseload ({myCaseload.length})
-            </h3>
-            {myCaseload.length === 0 ? <p className="text-slate-400 italic">No active cases assigned.</p> : (
-              <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-                <table className="w-full">
-                    <thead className="bg-slate-50 border-b border-slate-200">
-                      <tr>
-                        <th className="px-6 py-4 text-left text-xs font-semibold text-slate-500 uppercase">Case</th>
-                        <th className="px-6 py-4 text-left text-xs font-semibold text-slate-500 uppercase">Status</th>
-                        <th className="px-6 py-4 text-right text-xs font-semibold text-slate-500 uppercase">Action</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100">
-                      {myCaseload.map(c => (
-                        <tr key={c._id} className="hover:bg-blue-50/50 transition-colors">
-                          <td className="px-6 py-4">
-                            <div className="font-bold text-slate-900">{c.title}</div>
-                            <div className="text-xs text-slate-500 font-mono">{c.caseNumber}</div>
-                          </td>
-                          <td className="px-6 py-4">
-                            <span className="bg-green-100 text-green-800 px-2 py-1 rounded text-xs font-bold uppercase">
-                              {c.status}
-                            </span>
-                          </td>
-                          <td className="px-6 py-4 text-right">
-                            <button onClick={() => navigate(`/case/${c._id}`)} className="text-blue-600 font-bold text-xs hover:underline">View Details</button>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                </table>
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* --- SECTION 2: MY FILED COMPLAINTS --- */}
+        {/* --- SECTION 1: NEW OPPORTUNITIES (MOVED TO TOP) --- */}
         <div className="mb-12">
-          <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2 mb-4">
-            <User className="text-indigo-600" /> My Filed Complaints ({myFiledComplaints.length})
-          </h3>
-          {myFiledComplaints.length === 0 ? <p className="text-slate-400 italic">You haven't filed any cases.</p> : (
-            <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-                <table className="w-full">
-                  <thead className="bg-slate-50 border-b border-slate-200">
-                    <tr>
-                      <th className="px-6 py-4 text-left text-xs font-semibold text-slate-500 uppercase">Case</th>
-                      <th className="px-6 py-4 text-left text-xs font-semibold text-slate-500 uppercase">Status</th>
-                      <th className="px-6 py-4 text-right text-xs font-semibold text-slate-500 uppercase">Action</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    {myFiledComplaints.map(c => (
-                      <tr key={c._id} className="hover:bg-indigo-50/50 transition-colors">
-                        <td className="px-6 py-4">
-                          <div className="font-bold text-slate-900">{c.title}</div>
-                          <div className="text-xs text-slate-500 font-mono">{c.caseNumber}</div>
-                        </td>
-                        <td className="px-6 py-4">
-                            <span className="bg-slate-100 text-slate-700 px-2 py-1 rounded text-xs font-bold uppercase">{c.status}</span>
-                        </td>
-                        <td className="px-6 py-4 text-right">
-                          <button onClick={() => navigate(`/case/${c._id}`)} className="text-indigo-600 font-bold text-xs hover:underline">View Details</button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-            </div>
-          )}
-        </div>
-
-        {/* --- SECTION 3: NEW OPPORTUNITIES --- */}
-        <div className="mb-8">
             <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2 mb-4">
               <Gavel className="text-slate-400" /> Public Opportunities ({availableCases.length})
             </h3>
@@ -218,6 +140,82 @@ export const Cases: React.FC = () => {
                 </table>
               )}
             </div>
+        </div>
+
+        {/* --- SECTION 2: MY ACTIVE CASELOAD (Lawyer Only) --- */}
+        {user?.role === 'lawyer' && (
+          <div className="mb-12">
+            <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2 mb-4">
+              <Briefcase className="text-blue-600" /> My Active Caseload ({myCaseload.length})
+            </h3>
+            {myCaseload.length === 0 ? <p className="text-slate-400 italic">No active cases assigned.</p> : (
+              <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+                <table className="w-full">
+                    <thead className="bg-slate-50 border-b border-slate-200">
+                      <tr>
+                        <th className="px-6 py-4 text-left text-xs font-semibold text-slate-500 uppercase">Case</th>
+                        <th className="px-6 py-4 text-left text-xs font-semibold text-slate-500 uppercase">Status</th>
+                        <th className="px-6 py-4 text-right text-xs font-semibold text-slate-500 uppercase">Action</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {myCaseload.map(c => (
+                        <tr key={c._id} className="hover:bg-blue-50/50 transition-colors">
+                          <td className="px-6 py-4">
+                            <div className="font-bold text-slate-900">{c.title}</div>
+                            <div className="text-xs text-slate-500 font-mono">{c.caseNumber}</div>
+                          </td>
+                          <td className="px-6 py-4">
+                            <span className="bg-green-100 text-green-800 px-2 py-1 rounded text-xs font-bold uppercase">
+                              {c.status}
+                            </span>
+                          </td>
+                          <td className="px-6 py-4 text-right">
+                            <button onClick={() => navigate(`/case/${c._id}`)} className="text-blue-600 font-bold text-xs hover:underline">View Details</button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* --- SECTION 3: MY FILED COMPLAINTS --- */}
+        <div className="mb-12">
+          <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2 mb-4">
+            <User className="text-indigo-600" /> My Filed Complaints ({myFiledComplaints.length})
+          </h3>
+          {myFiledComplaints.length === 0 ? <p className="text-slate-400 italic">You haven't filed any cases.</p> : (
+            <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+                <table className="w-full">
+                  <thead className="bg-slate-50 border-b border-slate-200">
+                    <tr>
+                      <th className="px-6 py-4 text-left text-xs font-semibold text-slate-500 uppercase">Case</th>
+                      <th className="px-6 py-4 text-left text-xs font-semibold text-slate-500 uppercase">Status</th>
+                      <th className="px-6 py-4 text-right text-xs font-semibold text-slate-500 uppercase">Action</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {myFiledComplaints.map(c => (
+                      <tr key={c._id} className="hover:bg-indigo-50/50 transition-colors">
+                        <td className="px-6 py-4">
+                          <div className="font-bold text-slate-900">{c.title}</div>
+                          <div className="text-xs text-slate-500 font-mono">{c.caseNumber}</div>
+                        </td>
+                        <td className="px-6 py-4">
+                            <span className="bg-slate-100 text-slate-700 px-2 py-1 rounded text-xs font-bold uppercase">{c.status}</span>
+                        </td>
+                        <td className="px-6 py-4 text-right">
+                          <button onClick={() => navigate(`/case/${c._id}`)} className="text-indigo-600 font-bold text-xs hover:underline">View Details</button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+            </div>
+          )}
         </div>
 
       </div>
