@@ -21,24 +21,22 @@ const caseSchema = new mongoose.Schema({
   },
   status: {
     type: String,
-    // --- FIX IS HERE: ADD 'pending_lawyer' TO THIS LIST ---
     enum: ['pending_lawyer', 'filed', 'under-investigation', 'in-court', 'resolved'], 
-    default: 'pending_lawyer', // Change default to pending_lawyer
+    default: 'pending_lawyer',
   },
   priority: {
     type: String,
     enum: ['low', 'medium', 'high', 'urgent'],
     default: 'medium',
   },
-
-  // --- NEW FIELDS ---
   isProBono: { type: Boolean, default: false },
   isAnonymous: { type: Boolean, default: false },
   shareWithLegalAid: { type: Boolean, default: false },
   
+  // Changed to optional so the middleware can calculate it automatically if missing
   deadlineDate: { 
     type: Date, 
-    required: true 
+    required: false 
   },
 
   location: String,
@@ -98,8 +96,29 @@ const caseSchema = new mongoose.Schema({
     givenBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
     givenAt: Date,
   },
-
-
 }, { timestamps: true });
+
+// --- AUTOMATED DEADLINE FEATURE ---
+// This calculates the deadline automatically before saving if one isn't provided
+caseSchema.pre('save', function(next) {
+  if (!this.deadlineDate) {
+    const timelineRules = {
+      civil: 90,
+      criminal: 60,
+      cyber: 45,
+      corporate: 120,
+      commercial: 90,
+      family: 60,
+      property: 90,
+      other: 60
+    };
+    
+    const daysToSolve = timelineRules[this.type] || 60; 
+    const deadline = new Date();
+    deadline.setDate(deadline.getDate() + daysToSolve);
+    this.deadlineDate = deadline;
+  }
+  next();
+});
 
 export default mongoose.model('Case', caseSchema);
