@@ -47,6 +47,13 @@ const caseSchema = new mongoose.Schema({
     default: 'medium',
   },
 
+  // ADD THIS NEW FIELD:
+  isProBono: {
+    type: Boolean,
+    default: false,
+  },
+  location: String,
+  incidentDate: Date,
   documents: [
     {
       fileName: String,
@@ -67,25 +74,6 @@ const caseSchema = new mongoose.Schema({
       },
       verifiedAt: Date,
       rejectionReason: String // Optional: help the user fix their filing
-    },
-  ],
-
-  
-  // ADD THIS NEW FIELD:
-  isProBono: {
-    type: Boolean,
-    default: false,
-  },
-  location: String,
-  incidentDate: Date,
-  documents: [
-    {
-      fileName: String,
-      fileUrl: String,
-      uploadedAt: {
-        type: Date,
-        default: Date.now,
-      },
     },
   ],
   timeline: [
