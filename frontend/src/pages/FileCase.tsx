@@ -1,25 +1,43 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '../hooks/useAuth';
-import { useNavigate } from 'react-router-dom';
-import { Shield, EyeOff, Users, FileText, MapPin, Calendar, Info } from 'lucide-react';
+import { useNavigate, useLocation } from 'react-router-dom';
+import { Shield, EyeOff, Users, FileText, MapPin, Calendar, Info, CheckCircle, BookOpen } from 'lucide-react'; // <-- ADDED BookOpen HERE
 
 export const FileCase: React.FC = () => {
   const { token } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
+  const prefillData = location.state as any; 
+
   const [loading, setLoading] = useState(false);
   
   const [formData, setFormData] = useState({
     title: '',
-    description: '',
-    type: 'civil', // default
+    description: prefillData?.description || '', 
+    type: prefillData?.type || 'civil',          
     location: '',
     incidentDate: '',
-    
-    // --- NEW FIELDS ---
     isAnonymous: false,
     shareWithLegalAid: false,
-    isProBono: false // We will link this to 'shareWithLegalAid'
+    isProBono: false,
+    bnsSection: prefillData?.bnsSection || '',                  
+    aiSuggestedEvidence: prefillData?.requiredEvidence || []    
   });
+
+  // --- NEW ADDITION: FORCE FORM UPDATE ---
+  // This ensures the form updates with new AI data even if the page was already open
+  useEffect(() => {
+    if (prefillData) {
+      setFormData(prev => ({
+        ...prev,
+        description: prefillData.description || prev.description,
+        type: prefillData.type || prev.type,
+        bnsSection: prefillData.bnsSection || prev.bnsSection,
+        aiSuggestedEvidence: prefillData.requiredEvidence || prev.aiSuggestedEvidence
+      }));
+    }
+  }, [prefillData]);
+  // ---------------------------------------
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const value = e.target.type === 'checkbox' ? (e.target as HTMLInputElement).checked : e.target.value;
@@ -39,7 +57,7 @@ export const FileCase: React.FC = () => {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`
         },
-        body: JSON.stringify(formData)
+        body: JSON.stringify(formData) 
       });
 
       if (res.ok) {
@@ -65,6 +83,24 @@ export const FileCase: React.FC = () => {
 
       <form onSubmit={handleSubmit} className="bg-white p-8 rounded-xl shadow-sm border border-slate-200 space-y-8">
         
+        {/* AI SUGGESTED EVIDENCE CHECKLIST UI */}
+        {formData.aiSuggestedEvidence && formData.aiSuggestedEvidence.length > 0 && (
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-5">
+            <h3 className="text-blue-900 font-semibold flex items-center gap-2 mb-3">
+              <CheckCircle size={18} /> AI Case Builder Active
+            </h3>
+            <p className="text-sm text-blue-800 mb-2">
+              Based on your chat, this incident falls under <strong>BNS Section {formData.bnsSection}</strong>. 
+              To avoid delays, please ensure you have the following documents ready to upload later:
+            </p>
+            <ul className="list-disc pl-5 text-sm text-blue-700 space-y-1">
+              {formData.aiSuggestedEvidence.map((doc: string, idx: number) => (
+                <li key={idx}>{doc}</li>
+              ))}
+            </ul>
+          </div>
+        )}
+
         {/* SECTION 1: CASE DETAILS */}
         <div className="space-y-6">
           <h3 className="font-semibold text-slate-900 border-b pb-2 flex items-center gap-2">
@@ -78,13 +114,30 @@ export const FileCase: React.FC = () => {
             </div>
             <div>
                <label className="block text-sm font-medium text-slate-700 mb-1">Case Type</label>
-               <select name="type" onChange={handleChange} className="w-full p-2.5 border rounded-lg bg-white">
+               <select name="type" value={formData.type} onChange={handleChange} className="w-full p-2.5 border rounded-lg bg-white">
                  <option value="civil">Civil Dispute</option>
                  <option value="criminal">Criminal Offence</option>
                  <option value="cyber">Cyber Crime</option>
                  <option value="corporate">Corporate</option>
                </select>
             </div>
+            
+            {/* --- THIS IS THE MISSING BNS SECTION INPUT FIELD --- */}
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">Applicable Law (BNS Section)</label>
+              <div className="relative">
+                <BookOpen size={18} className="absolute left-3 top-3 text-slate-400" />
+                <input 
+                  name="bnsSection" 
+                  value={formData.bnsSection} 
+                  onChange={handleChange} 
+                  className="w-full p-2.5 pl-10 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-blue-50/50" 
+                  placeholder="e.g. 318" 
+                />
+              </div>
+            </div>
+            {/* --------------------------------------------------- */}
+
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-1">Location</label>
               <div className="relative">
@@ -103,11 +156,11 @@ export const FileCase: React.FC = () => {
 
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-1">Detailed Description</label>
-            <textarea name="description" onChange={handleChange} required rows={4} className="w-full p-2.5 border rounded-lg" placeholder="Describe exactly what happened..." />
+            <textarea name="description" value={formData.description} onChange={handleChange} required rows={8} className="w-full p-2.5 border rounded-lg" placeholder="Describe exactly what happened..." />
           </div>
         </div>
 
-        {/* SECTION 2: PRIVACY & OPTIONS (THE NEW FEATURE) */}
+        {/* SECTION 2: PRIVACY & OPTIONS */}
         <div className="space-y-4 pt-4">
           <h3 className="font-semibold text-slate-900 border-b pb-2 flex items-center gap-2">
             <Shield size={18} className="text-purple-600"/> Privacy & Legal Options

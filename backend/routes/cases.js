@@ -17,7 +17,8 @@ router.post('/file', verifyToken, checkRole(['citizen']), async (req, res) => {
   try {
     const { 
       title, description, type, location, incidentDate, 
-      documents, isProBono, isAnonymous, shareWithLegalAid 
+      documents, isProBono, isAnonymous, shareWithLegalAid,
+      bnsSection, aiSuggestedEvidence // <-- FIXED: Destructure these from the request
     } = req.body;
 
     const caseNumber = await generateCaseNumber();
@@ -43,15 +44,16 @@ router.post('/file', verifyToken, checkRole(['citizen']), async (req, res) => {
       location,
       incidentDate,
       documents: documents || [],
-      
-      // --- CHANGE 1: START AS PENDING ---
       status: 'pending_lawyer', 
-      // ----------------------------------
-
       isProBono: isProBono || false,
       isAnonymous: isAnonymous || false,
       shareWithLegalAid: shareWithLegalAid || false,
       deadlineDate, 
+
+      // --- FIXED: ADD THESE TO THE NEW CASE OBJECT ---
+      bnsSection: bnsSection || null,
+      aiSuggestedEvidence: aiSuggestedEvidence || [],
+      // ----------------------------------------------
 
       timeline: [{
         date: new Date(),
@@ -68,7 +70,35 @@ router.post('/file', verifyToken, checkRole(['citizen']), async (req, res) => {
   }
 });
 
-// 2. Get All Cases -> JUDGE ONLY SEES "FILED" CASES
+// NEW: Route for officials to verify uploaded evidence
+router.put('/:id/verify-evidence', verifyToken, checkRole(['lawyer', 'police']), async (req, res) => {
+  try {
+    const { documentId, status } = req.body; 
+    const caseItem = await Case.findById(req.params.id);
+
+    if (!caseItem) return res.status(404).json({ message: 'Case not found' });
+
+    const doc = caseItem.documents.id(documentId);
+    if (!doc) return res.status(404).json({ message: 'Document not found' });
+
+    doc.verificationStatus = status;
+    doc.verifiedAt = status === 'verified' ? new Date() : null;
+
+    caseItem.timeline.push({
+      date: new Date(),
+      status: caseItem.status,
+      updatedBy: req.user.userId,
+      notes: `Evidence "${doc.fileName}" was ${status} by ${req.user.role}`
+    });
+
+    await caseItem.save();
+    res.json({ message: `Evidence marked as ${status}`, case: caseItem });
+  } catch (error) {
+    res.status(500).json({ message: 'Error verifying evidence', error: error.message });
+  }
+});
+
+// 2. Get All Cases 
 router.get('/', verifyToken, async (req, res) => {
   try {
     let query = {};
@@ -80,13 +110,11 @@ router.get('/', verifyToken, async (req, res) => {
     } else if (req.user.role === 'lawyer') {
       query.$or = [
         { assignedLawyer: req.user.userId },
-        { assignedLawyer: { $exists: false } }, // See unassigned
+        { assignedLawyer: { $exists: false } },
         { assignedLawyer: null }
       ];
     } else if (req.user.role === 'judge') {
-      // --- CHANGE 2: FILTER HIDDEN DRAFTS ---
       query.status = { $in: ['filed', 'under-investigation', 'in-court', 'resolved'] };
-      // --------------------------------------
     }
 
     const cases = await Case.find(query)
@@ -210,16 +238,14 @@ router.post('/:id/hearings', verifyToken, async (req, res) => {
   }
 });
 
-// --- CHANGE 3: NEW ROUTE FOR LAWYER TO SUBMIT TO COURT ---
+// 9. Submit to Court (Lawyer)
 router.put('/:id/submit-to-court', verifyToken, checkRole(['lawyer']), async (req, res) => {
   try {
     const caseItem = await Case.findById(req.params.id);
     if (!caseItem) return res.status(404).json({ message: 'Case not found' });
     
-    // 1. Change Status to 'filed' (Visible to Judge)
     caseItem.status = 'filed';
     
-    // 2. Start the Statutory Timer NOW
     const timelineRules = { civil: 90, criminal: 60, cyber: 45, corporate: 120 };
     const daysToSolve = timelineRules[caseItem.type] || 60;
     
@@ -227,7 +253,6 @@ router.put('/:id/submit-to-court', verifyToken, checkRole(['lawyer']), async (re
     deadline.setDate(deadline.getDate() + daysToSolve);
     caseItem.deadlineDate = deadline;
 
-    // 3. Add to Timeline
     caseItem.timeline.push({
       date: new Date(),
       status: 'filed',

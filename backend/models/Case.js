@@ -21,21 +21,26 @@ const caseSchema = new mongoose.Schema({
   },
   status: {
     type: String,
-    // --- FIX IS HERE: ADD 'pending_lawyer' TO THIS LIST ---
     enum: ['pending_lawyer', 'filed', 'under-investigation', 'in-court', 'resolved'], 
-    default: 'pending_lawyer', // Change default to pending_lawyer
+    default: 'pending_lawyer',
   },
   priority: {
     type: String,
     enum: ['low', 'medium', 'high', 'urgent'],
     default: 'medium',
   },
+  
+  // --- AI INTEGRATION FIELDS ---
+  bnsSection: { type: String, default: null },
+  aiSuggestedEvidence: [{ type: String }],
+  requiresLawyerReview: { type: Boolean, default: false },
 
-  // --- NEW FIELDS ---
+  // --- PRIVACY & AID OPTIONS ---
   isProBono: { type: Boolean, default: false },
   isAnonymous: { type: Boolean, default: false },
   shareWithLegalAid: { type: Boolean, default: false },
   
+  // --- BNSS TIMELINE MANAGEMENT ---
   deadlineDate: { 
     type: Date, 
     required: true 
@@ -44,16 +49,25 @@ const caseSchema = new mongoose.Schema({
   location: String,
   incidentDate: Date,
   
+  // --- ROLE-BASED ASSIGNMENTS ---
   filedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
   assignedPolice: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
   assignedLawyer: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
   assignedJudge: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
 
+  // --- UPDATED DOCUMENTS ARRAY (FOR VERIFICATION) ---
   documents: [
     {
       fileName: String,
       fileUrl: String,
       uploadedAt: { type: Date, default: Date.now },
+      // NEW: Needed for the verify/reject feature to work
+      verificationStatus: { 
+        type: String, 
+        enum: ['pending', 'verified', 'rejected'], 
+        default: 'pending' 
+      },
+      verifiedAt: Date,
     },
   ],
   
@@ -98,7 +112,6 @@ const caseSchema = new mongoose.Schema({
     givenBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
     givenAt: Date,
   },
-
 
 }, { timestamps: true });
 
