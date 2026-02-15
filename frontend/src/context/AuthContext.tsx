@@ -18,6 +18,9 @@ interface AuthContextType {
 
 export const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+const getApiUrl = () =>
+  import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+
 export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(() => {
     const stored = localStorage.getItem('user');
@@ -29,41 +32,57 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   });
 
   const login = useCallback(async (email: string, password: string) => {
-    const response = await fetch(`${import.meta.env.VITE_API_URL}/auth/login`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, password }),
-    });
+    try {
+      const response = await fetch(`${getApiUrl()}/auth/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password }),
+      });
 
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.message);
+      if (!response.ok) {
+        const error = await response.json().catch(() => ({ message: 'Login failed' }));
+        throw new Error(error.message);
+      }
+
+      const data = await response.json();
+      setUser(data.user);
+      setToken(data.token);
+      localStorage.setItem('user', JSON.stringify(data.user));
+      localStorage.setItem('token', data.token);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : '';
+      if (msg === 'Failed to fetch' || msg.includes('fetch') || msg.includes('NetworkError')) {
+        throw new Error('Cannot reach server. Make sure the backend is running (e.g. npm start in backend folder).');
+      }
+      throw err;
     }
-
-    const data = await response.json();
-    setUser(data.user);
-    setToken(data.token);
-    localStorage.setItem('user', JSON.stringify(data.user));
-    localStorage.setItem('token', data.token);
   }, []);
 
   const register = useCallback(async (email: string, password: string, fullName: string, role: string) => {
-    const response = await fetch(`${import.meta.env.VITE_API_URL}/auth/register`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, password, fullName, role }),
-    });
+    try {
+      const response = await fetch(`${getApiUrl()}/auth/register`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password, fullName, role }),
+      });
 
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.message);
+      if (!response.ok) {
+        const error = await response.json().catch(() => ({ message: 'Registration failed' }));
+        throw new Error(error.message);
+      }
+
+      const data = await response.json();
+      setUser(data.user);
+      setToken(data.token);
+      localStorage.setItem('user', JSON.stringify(data.user));
+      localStorage.setItem('token', data.token);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : '';
+      if (msg === 'Failed to fetch' || msg.includes('fetch') || msg.includes('NetworkError')) {
+        throw new Error('Cannot reach server. Make sure the backend is running (e.g. npm start in backend folder).');
+      }
+      throw err;
     }
-
-    const data = await response.json();
-    setUser(data.user);
-    setToken(data.token);
-    localStorage.setItem('user', JSON.stringify(data.user));
-    localStorage.setItem('token', data.token);
   }, []);
 
   const logout = useCallback(() => {

@@ -72,17 +72,25 @@ router.post('/file', verifyToken, checkRole(['citizen']), async (req, res) => {
 router.get('/', verifyToken, async (req, res) => {
   try {
     let query = {};
+    const acceptedOnly = req.query.acceptedOnly === 'true';
 
     if (req.user.role === 'citizen') {
       query.filedBy = req.user.userId;
     } else if (req.user.role === 'police') {
       query.assignedPolice = req.user.userId;
     } else if (req.user.role === 'lawyer') {
-      query.$or = [
-        { assignedLawyer: req.user.userId },
-        { assignedLawyer: { $exists: false } }, // See unassigned
-        { assignedLawyer: null }
-      ];
+      if (acceptedOnly) {
+        // Chat section: only cases this lawyer has accepted
+        query.assignedLawyer = req.user.userId;
+      } else {
+        // Case management: their cases OR unassigned (to accept)
+        query.$or = [
+          { assignedLawyer: req.user.userId },
+          { assignedLawyer: { $exists: false } },
+          { assignedLawyer: null }
+        ];
+      }
+
     } else if (req.user.role === 'judge') {
       // --- CHANGE 2: FILTER HIDDEN DRAFTS ---
       query.status = { $in: ['filed', 'under-investigation', 'in-court', 'resolved'] };

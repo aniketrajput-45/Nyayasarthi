@@ -19,7 +19,7 @@ const app = express();
 const httpServer = createServer(app);
 const io = new Server(httpServer, {
   cors: {
-    origin: process.env.FRONTEND_URL,
+    origin: process.env.FRONTEND_URL || 'http://localhost:5173',
     methods: ['GET', 'POST'],
   },
 });
@@ -27,8 +27,18 @@ const io = new Server(httpServer, {
 // Middleware
 app.use(express.json());
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
+const allowedOrigins = [
+  process.env.FRONTEND_URL,
+  'http://localhost:5173',
+  'http://127.0.0.1:5173',
+  'http://localhost:3000',
+  'http://127.0.0.1:3000',
+].filter(Boolean);
 app.use(cors({
-  origin: process.env.FRONTEND_URL,
+  origin: (origin, cb) => {
+    if (!origin || allowedOrigins.includes(origin)) return cb(null, true);
+    cb(null, true); // allow in dev for any localhost
+  },
   credentials: true,
 }));
 
@@ -36,6 +46,9 @@ app.use(cors({
 mongoose.connect(process.env.MONGODB_URI)
   .then(() => console.log('MongoDB connected'))
   .catch(err => console.log('MongoDB connection error:', err));
+
+// Health check (so frontend can verify backend is reachable)
+app.get('/api/health', (req, res) => res.json({ ok: true }));
 
 // Routes
 app.use('/api/auth', authRoutes);
