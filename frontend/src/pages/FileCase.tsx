@@ -1,41 +1,28 @@
-import React, { useState } from "react";
-import { useAuth } from "../hooks/useAuth";
-import { useNavigate } from "react-router-dom";
-import { AlertCircle, CheckCircle } from "lucide-react";
-
-const caseTypes = [
-  "civil",
-  "criminal",
-  "commercial",
-  "family",
-  "property",
-  "other",
-];
+import React, { useState } from 'react';
+import { useAuth } from '../hooks/useAuth';
+import { useNavigate } from 'react-router-dom';
+import { Shield, EyeOff, Users, FileText, MapPin, Calendar, Info } from 'lucide-react';
 
 export const FileCase: React.FC = () => {
   const { token } = useAuth();
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
-  const [success, setSuccess] = useState(false);
-  const [error, setError] = useState("");
+  
   const [formData, setFormData] = useState({
-    title: "",
-    description: "",
-    type: "civil",
-    location: "",
-    incidentDate: "",
-    isProBono: false, // Add this new field to the form data
+    title: '',
+    description: '',
+    type: 'civil', // default
+    location: '',
+    incidentDate: '',
+    
+    // --- NEW FIELDS ---
+    isAnonymous: false,
+    shareWithLegalAid: false,
+    isProBono: false // We will link this to 'shareWithLegalAid'
   });
 
-  const handleChange = (
-    e: React.ChangeEvent<
-      HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement
-    >,
-  ) => {
-    const value =
-      e.target.type === "checkbox"
-        ? (e.target as HTMLInputElement).checked
-        : e.target.value;
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
+    const value = e.target.type === 'checkbox' ? (e.target as HTMLInputElement).checked : e.target.value;
     setFormData({
       ...formData,
       [e.target.name]: value,
@@ -45,176 +32,134 @@ export const FileCase: React.FC = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-    setError("");
-
     try {
-      const response = await fetch(
-        `${import.meta.env.VITE_API_URL}/cases/file`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify(formData),
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/cases/file`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
         },
-      );
+        body: JSON.stringify(formData)
+      });
 
-      if (!response.ok) {
-        const data = await response.json();
-        throw new Error(data.message || "Failed to file case");
+      if (res.ok) {
+        alert("Case Filed Successfully! Redirecting to Dashboard...");
+        navigate('/cases');
+      } else {
+        alert("Error filing case. Please try again.");
       }
-
-      setSuccess(true);
-      setTimeout(() => navigate("/my-cases"), 2000);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Error filing case");
+      console.error(err);
+      alert("Server error.");
     } finally {
       setLoading(false);
     }
   };
 
-  if (success) {
-    return (
-      <div className="p-8">
-        <div className="max-w-2xl mx-auto bg-white rounded-lg shadow p-8 text-center">
-          <CheckCircle className="w-16 h-16 text-green-600 mx-auto mb-4" />
-          <h2 className="text-2xl font-bold text-slate-900 mb-2">
-            Case Filed Successfully
-          </h2>
-          <p className="text-slate-600 mb-6">
-            Your case has been registered. You will be redirected to your cases.
-          </p>
-        </div>
-      </div>
-    );
-  }
-
   return (
-    <div className="p-8">
-      <div className="max-w-2xl mx-auto">
-        <h2 className="text-3xl font-bold text-slate-900 mb-8">
-          File a New Case
-        </h2>
-
-        {error && (
-          <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg flex items-start gap-3">
-            <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
-            <p className="text-red-700 text-sm">{error}</p>
-          </div>
-        )}
-
-        <form
-          onSubmit={handleSubmit}
-          className="bg-white rounded-lg shadow p-8 space-y-6"
-        >
-          <div>
-            <label className="block text-sm font-medium text-slate-700 mb-2">
-              Case Title *
-            </label>
-            <input
-              type="text"
-              name="title"
-              value={formData.title}
-              onChange={handleChange}
-              className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              placeholder="Brief title of your case"
-              required
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-slate-700 mb-2">
-              Case Type *
-            </label>
-            <select
-              name="type"
-              value={formData.type}
-              onChange={handleChange}
-              className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              required
-            >
-              {caseTypes.map((type) => (
-                <option key={type} value={type}>
-                  {type.charAt(0).toUpperCase() + type.slice(1)}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-slate-700 mb-2">
-              Description *
-            </label>
-            <textarea
-              name="description"
-              value={formData.description}
-              onChange={handleChange}
-              rows={6}
-              className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              placeholder="Detailed description of your case"
-              required
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-slate-700 mb-2">
-              Location *
-            </label>
-            <input
-              type="text"
-              name="location"
-              value={formData.location}
-              onChange={handleChange}
-              className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              placeholder="Location of incident"
-              required
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-slate-700 mb-2">
-              Date of Incident *
-            </label>
-            <input
-              type="date"
-              name="incidentDate"
-              value={formData.incidentDate}
-              onChange={handleChange}
-              className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              required
-            />
-          </div>
-
-          <div className="flex items-center gap-2 mb-6 p-4 bg-blue-50 rounded-lg border border-blue-100">
-            <input
-              type="checkbox"
-              name="isProBono"
-              checked={formData.isProBono}
-              onChange={handleChange}
-              id="proBono"
-              className="w-5 h-5 text-blue-600 rounded focus:ring-blue-500"
-            />
-            <label htmlFor="proBono" className="text-sm text-slate-700">
-              <span className="font-bold text-slate-900">
-                Request Pro Bono (Free Legal Aid)
-              </span>
-              <p className="text-xs text-slate-500">
-                Check this if you cannot afford a lawyer. Eligible lawyers may
-                accept your case for free.
-              </p>
-            </label>
-          </div>
-
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white font-medium py-3 rounded-lg transition"
-          >
-            {loading ? "Filing Case..." : "File Case"}
-          </button>
-        </form>
+    <div className="max-w-4xl mx-auto p-8 bg-slate-50 min-h-screen">
+      <div className="mb-8">
+        <h1 className="text-3xl font-bold text-slate-900">File a New Complaint</h1>
+        <p className="text-slate-500 mt-2">Securely submit your legal grievance to the authorities.</p>
       </div>
+
+      <form onSubmit={handleSubmit} className="bg-white p-8 rounded-xl shadow-sm border border-slate-200 space-y-8">
+        
+        {/* SECTION 1: CASE DETAILS */}
+        <div className="space-y-6">
+          <h3 className="font-semibold text-slate-900 border-b pb-2 flex items-center gap-2">
+            <Info size={18} className="text-blue-600"/> Case Details
+          </h3>
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">Incident Title</label>
+              <input name="title" onChange={handleChange} required className="w-full p-2.5 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" placeholder="e.g. Theft of Vehicle" />
+            </div>
+            <div>
+               <label className="block text-sm font-medium text-slate-700 mb-1">Case Type</label>
+               <select name="type" onChange={handleChange} className="w-full p-2.5 border rounded-lg bg-white">
+                 <option value="civil">Civil Dispute</option>
+                 <option value="criminal">Criminal Offence</option>
+                 <option value="cyber">Cyber Crime</option>
+                 <option value="corporate">Corporate</option>
+               </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">Location</label>
+              <div className="relative">
+                <MapPin size={18} className="absolute left-3 top-3 text-slate-400" />
+                <input name="location" onChange={handleChange} required className="w-full p-2.5 pl-10 border rounded-lg" placeholder="e.g. MG Road, Bangalore" />
+              </div>
+            </div>
+            <div>
+               <label className="block text-sm font-medium text-slate-700 mb-1">Date of Incident</label>
+               <div className="relative">
+                 <Calendar size={18} className="absolute left-3 top-3 text-slate-400" />
+                 <input type="date" name="incidentDate" onChange={handleChange} required className="w-full p-2.5 pl-10 border rounded-lg" />
+               </div>
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1">Detailed Description</label>
+            <textarea name="description" onChange={handleChange} required rows={4} className="w-full p-2.5 border rounded-lg" placeholder="Describe exactly what happened..." />
+          </div>
+        </div>
+
+        {/* SECTION 2: PRIVACY & OPTIONS (THE NEW FEATURE) */}
+        <div className="space-y-4 pt-4">
+          <h3 className="font-semibold text-slate-900 border-b pb-2 flex items-center gap-2">
+            <Shield size={18} className="text-purple-600"/> Privacy & Legal Options
+          </h3>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            
+            {/* OPTION 1: ANONYMOUS */}
+            <label className="relative flex items-start p-4 border rounded-xl hover:bg-slate-50 cursor-pointer transition-colors group">
+              <div className="flex items-center h-5">
+                <input name="isAnonymous" type="checkbox" onChange={handleChange} className="w-4 h-4 text-purple-600 border-gray-300 rounded focus:ring-purple-500" />
+              </div>
+              <div className="ml-3 text-sm">
+                <span className="font-medium text-slate-900 flex items-center gap-2">
+                  <EyeOff size={16} className="text-slate-500 group-hover:text-purple-600"/> File Anonymously
+                </span>
+                <p className="text-slate-500 mt-1">Hide your name from public records. Only the Investigating Officer will see your identity.</p>
+              </div>
+            </label>
+
+            {/* OPTION 2: LEGAL AID */}
+            <label className="relative flex items-start p-4 border rounded-xl hover:bg-slate-50 cursor-pointer transition-colors group">
+              <div className="flex items-center h-5">
+                <input 
+                  name="shareWithLegalAid" 
+                  type="checkbox" 
+                  onChange={(e) => {
+                    handleChange(e);
+                    // Automatically check isProBono if this is checked
+                    setFormData(prev => ({ ...prev, isProBono: e.target.checked })); 
+                  }} 
+                  className="w-4 h-4 text-purple-600 border-gray-300 rounded focus:ring-purple-500" 
+                />
+              </div>
+              <div className="ml-3 text-sm">
+                <span className="font-medium text-slate-900 flex items-center gap-2">
+                  <Users size={16} className="text-slate-500 group-hover:text-purple-600"/> Request Legal Aid
+                </span>
+                <p className="text-slate-500 mt-1">Share this case with registered lawyers to find free (Pro Bono) legal representation.</p>
+              </div>
+            </label>
+
+          </div>
+        </div>
+
+        <div className="pt-4">
+          <button disabled={loading} className="w-full bg-slate-900 hover:bg-slate-800 text-white py-3.5 rounded-lg font-bold shadow-lg transition-transform hover:scale-[1.01] flex items-center justify-center gap-2">
+            {loading ? "Filing Case..." : <> <FileText size={20}/> Submit Official Complaint </>}
+          </button>
+        </div>
+
+      </form>
     </div>
   );
 };
