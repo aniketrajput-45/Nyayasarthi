@@ -46,6 +46,31 @@ const caseSchema = new mongoose.Schema({
     enum: ['low', 'medium', 'high', 'urgent'],
     default: 'medium',
   },
+
+  documents: [
+    {
+      fileName: String,
+      fileUrl: String,
+      uploadedAt: {
+        type: Date,
+        default: Date.now,
+      },
+      // NEW FIELDS FOR ROLE-BASED VERIFICATION:
+      verificationStatus: { 
+        type: String, 
+        enum: ['pending', 'verified', 'rejected'], 
+        default: 'pending' 
+      },
+      verifiedBy: { 
+        type: mongoose.Schema.Types.ObjectId, 
+        ref: 'User' 
+      },
+      verifiedAt: Date,
+      rejectionReason: String // Optional: help the user fix their filing
+    },
+  ],
+
+  
   // ADD THIS NEW FIELD:
   isProBono: {
     type: Boolean,
