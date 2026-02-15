@@ -26,6 +26,11 @@ const chatMessageSchema = new mongoose.Schema({
 });
 
 const chatRoomSchema = new mongoose.Schema({
+  caseId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Case',
+    default: null,
+  },
   participant1: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
@@ -34,7 +39,7 @@ const chatRoomSchema = new mongoose.Schema({
   participant2: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
-    required: true,
+    default: null,
   },
   lastMessage: String,
   lastMessageTime: Date,
