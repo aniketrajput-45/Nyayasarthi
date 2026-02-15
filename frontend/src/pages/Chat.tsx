@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { useAuth } from '../hooks/useAuth';
-import { AlertCircle, Calendar, HelpCircle, MessageSquare, Phone, RefreshCw, Ticket, X, Send } from 'lucide-react';
+import { AlertCircle, Calendar, CheckCircle, Gavel, HelpCircle, RefreshCw, Shield, Ticket, User, X, Send } from 'lucide-react';
 
 const getApiUrl = () => import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
@@ -12,6 +12,15 @@ interface CaseItem {
   type: string;
   createdAt: string;
   priority?: string;
+  assignedLawyer?: string | { _id: string } | null;
+  assignedPolice?: string | { _id: string } | null;
+  assignedJudge?: string | { _id: string } | null;
+  filedBy?: string | { _id: string } | null;
+}
+
+function getCaseUserId(f: string | { _id: string } | null | undefined): string | null {
+  if (!f) return null;
+  return typeof f === 'object' ? f._id : f;
 }
 
 interface ChatMessageItem {
@@ -32,7 +41,13 @@ export const Chat: React.FC = () => {
   const [myCases, setMyCases] = useState<CaseItem[]>([]);
   const [casesLoading, setCasesLoading] = useState(false);
   const [error, setError] = useState('');
-  const [selectedCase, setSelectedCase] = useState<{ _id: string; caseNumber: string; title: string } | null>(null);
+  const [selectedCase, setSelectedCase] = useState<{
+    _id: string;
+    caseNumber: string;
+    title: string;
+    chatWithUserId: string;
+    chatWithLabel: string;
+  } | null>(null);
   const [chatMessages, setChatMessages] = useState<ChatMessageItem[]>([]);
   const [chatLoading, setChatLoading] = useState(false);
   const [chatSending, setChatSending] = useState(false);
@@ -54,15 +69,15 @@ export const Chat: React.FC = () => {
       .finally(() => setCasesLoading(false));
   }, [token, user?.role]);
 
-  // Load messages when a case chat is opened (same thread for citizen and lawyer)
+  // Load messages for the selected case + thread (chat with specific participant)
   useEffect(() => {
-    if (!token || !selectedCase) {
+    if (!token || !selectedCase?.chatWithUserId) {
       setChatMessages([]);
       return;
     }
     setChatLoading(true);
     setChatError('');
-    fetch(`${getApiUrl()}/chat/case/${selectedCase._id}/messages`, {
+    fetch(`${getApiUrl()}/chat/case/${selectedCase._id}/thread/${selectedCase.chatWithUserId}/messages`, {
       headers: { Authorization: `Bearer ${token}` },
     })
       .then((r) => {
@@ -75,15 +90,15 @@ export const Chat: React.FC = () => {
         setChatError('Failed to load messages');
       })
       .finally(() => setChatLoading(false));
-  }, [token, selectedCase?._id]);
+  }, [token, selectedCase?._id, selectedCase?.chatWithUserId]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [chatMessages]);
 
   const fetchMessages = () => {
-    if (!token || !selectedCase) return;
-    fetch(`${getApiUrl()}/chat/case/${selectedCase._id}/messages`, {
+    if (!token || !selectedCase?.chatWithUserId) return;
+    fetch(`${getApiUrl()}/chat/case/${selectedCase._id}/thread/${selectedCase.chatWithUserId}/messages`, {
       headers: { Authorization: `Bearer ${token}` },
     })
       .then((r) => (r.ok ? r.json() : []))
@@ -94,12 +109,12 @@ export const Chat: React.FC = () => {
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
     const text = chatInput.trim();
-    if (!text || !selectedCase || !token) return;
+    if (!text || !selectedCase?.chatWithUserId || !token) return;
     setChatSending(true);
     setChatInput('');
     setChatError('');
     try {
-      const res = await fetch(`${getApiUrl()}/chat/case/${selectedCase._id}/message`, {
+      const res = await fetch(`${getApiUrl()}/chat/case/${selectedCase._id}/thread/${selectedCase.chatWithUserId}/message`, {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${token}`,
@@ -264,7 +279,7 @@ export const Chat: React.FC = () => {
                     ? ''
                     : user?.role === 'lawyer'
                       ? 'Only cases you have accepted (Accept Client) appear here. Accept cases from the Cases page to chat.'
-                      : 'Enter Case number and Date, then click Submit to filter. Click Refresh to show all cases.'}
+                      : ''}
               </p>
             </div>
           </div>
@@ -305,21 +320,173 @@ export const Chat: React.FC = () => {
                       <td className="px-4 py-3 text-sm text-slate-900">{c.title}</td>
                       <td className="px-4 py-3 text-sm text-slate-600 capitalize">{c.type}</td>
                       <td className="px-4 py-3">
-                        <span className={`inline-flex px-2.5 py-1 rounded-lg text-xs font-medium ${getStatusColor(c.status)}`}>
-                          {c.status.replace(/-/g, ' ')}
-                        </span>
+                        {user?.role === 'citizen' ? (
+                          (c.assignedLawyer && (typeof c.assignedLawyer === 'object' ? c.assignedLawyer._id : c.assignedLawyer)) ? (
+                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium bg-emerald-500/15 text-emerald-700 border border-emerald-500/30">
+                              <CheckCircle className="w-4 h-4" />
+                              Accepted
+                            </span>
+                          ) : (
+                            <span className="inline-flex px-2.5 py-1 rounded-lg text-xs font-medium bg-slate-500/10 text-slate-700 border border-slate-300">
+                              Pending
+                            </span>
+                          )
+                        ) : user?.role === 'lawyer' ? (
+                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium bg-emerald-500/15 text-emerald-700 border border-emerald-500/30">
+                            <CheckCircle className="w-4 h-4" />
+                            Accepted
+                          </span>
+                        ) : (
+                          <span className={`inline-flex px-2.5 py-1 rounded-lg text-xs font-medium ${getStatusColor(c.status)}`}>
+                            {c.status.replace(/-/g, ' ')}
+                          </span>
+                        )}
                       </td>
                       <td className="px-4 py-3 text-sm text-slate-600">{new Date(c.createdAt).toLocaleDateString()}</td>
                       <td className="px-4 py-3">
                         <div className="flex flex-col gap-1.5">
-                          <button
-                            type="button"
-                            onClick={() => setSelectedCase({ _id: c._id, caseNumber: c.caseNumber, title: c.title })}
-                            className="inline-flex items-center gap-1.5 text-sm font-medium text-cyan-600 hover:text-cyan-700"
-                          >
-                            <MessageSquare className="w-4 h-4" />
-                            Chat
-                          </button>
+                          <div className="flex flex-wrap items-center gap-2">
+                            {user?.role === 'citizen' && (
+                              <>
+                                <button
+                                  type="button"
+                                  onClick={() => getCaseUserId(c.assignedPolice) && setSelectedCase({
+                                    _id: c._id,
+                                    caseNumber: c.caseNumber,
+                                    title: c.title,
+                                    chatWithUserId: getCaseUserId(c.assignedPolice)!,
+                                    chatWithLabel: 'Police',
+                                  })}
+                                  disabled={!getCaseUserId(c.assignedPolice)}
+                                  className="inline-flex items-center gap-1.5 text-sm font-medium text-cyan-600 hover:text-cyan-700 disabled:opacity-50 disabled:cursor-not-allowed disabled:text-slate-400"
+                                  title={getCaseUserId(c.assignedPolice) ? 'Chat with Police' : 'Police not assigned yet'}
+                                >
+                                  <Shield className="w-4 h-4" />
+                                  Police
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => getCaseUserId(c.assignedLawyer) && setSelectedCase({
+                                    _id: c._id,
+                                    caseNumber: c.caseNumber,
+                                    title: c.title,
+                                    chatWithUserId: getCaseUserId(c.assignedLawyer)!,
+                                    chatWithLabel: 'Lawyer',
+                                  })}
+                                  disabled={!getCaseUserId(c.assignedLawyer)}
+                                  className="inline-flex items-center gap-1.5 text-sm font-medium text-cyan-600 hover:text-cyan-700 disabled:opacity-50 disabled:cursor-not-allowed disabled:text-slate-400"
+                                  title={getCaseUserId(c.assignedLawyer) ? 'Chat with Lawyer' : 'Lawyer not assigned yet'}
+                                >
+                                  <Gavel className="w-4 h-4" />
+                                  Lawyer
+                                </button>
+                              </>
+                            )}
+                            {user?.role === 'police' && (
+                              <>
+                                {getCaseUserId(c.assignedLawyer) && (
+                                  <button
+                                    type="button"
+                                    onClick={() => setSelectedCase({
+                                      _id: c._id,
+                                      caseNumber: c.caseNumber,
+                                      title: c.title,
+                                      chatWithUserId: getCaseUserId(c.assignedLawyer)!,
+                                      chatWithLabel: 'Lawyer',
+                                    })}
+                                    className="inline-flex items-center gap-1.5 text-sm font-medium text-cyan-600 hover:text-cyan-700"
+                                  >
+                                    <Gavel className="w-4 h-4" />
+                                    Lawyer
+                                  </button>
+                                )}
+                                {getCaseUserId(c.filedBy) && (
+                                  <button
+                                    type="button"
+                                    onClick={() => setSelectedCase({
+                                      _id: c._id,
+                                      caseNumber: c.caseNumber,
+                                      title: c.title,
+                                      chatWithUserId: getCaseUserId(c.filedBy)!,
+                                      chatWithLabel: 'Citizen',
+                                    })}
+                                    className="inline-flex items-center gap-1.5 text-sm font-medium text-cyan-600 hover:text-cyan-700"
+                                  >
+                                    <User className="w-4 h-4" />
+                                    Citizen
+                                  </button>
+                                )}
+                              </>
+                            )}
+                            {user?.role === 'lawyer' && (
+                              <>
+                                <button
+                                  type="button"
+                                  onClick={() => getCaseUserId(c.assignedPolice) && setSelectedCase({
+                                    _id: c._id,
+                                    caseNumber: c.caseNumber,
+                                    title: c.title,
+                                    chatWithUserId: getCaseUserId(c.assignedPolice)!,
+                                    chatWithLabel: 'Police',
+                                  })}
+                                  disabled={!getCaseUserId(c.assignedPolice)}
+                                  className="inline-flex items-center gap-1.5 text-sm font-medium text-cyan-600 hover:text-cyan-700 disabled:opacity-50 disabled:cursor-not-allowed disabled:text-slate-400"
+                                  title={getCaseUserId(c.assignedPolice) ? 'Chat with Police' : 'Police not assigned yet'}
+                                >
+                                  <Shield className="w-4 h-4" />
+                                  Police
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => getCaseUserId(c.assignedJudge) && setSelectedCase({
+                                    _id: c._id,
+                                    caseNumber: c.caseNumber,
+                                    title: c.title,
+                                    chatWithUserId: getCaseUserId(c.assignedJudge)!,
+                                    chatWithLabel: 'Judge',
+                                  })}
+                                  disabled={!getCaseUserId(c.assignedJudge)}
+                                  className="inline-flex items-center gap-1.5 text-sm font-medium text-cyan-600 hover:text-cyan-700 disabled:opacity-50 disabled:cursor-not-allowed disabled:text-slate-400"
+                                  title={getCaseUserId(c.assignedJudge) ? 'Chat with Judge' : 'Judge not assigned yet'}
+                                >
+                                  <Gavel className="w-4 h-4" />
+                                  Judge
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => getCaseUserId(c.filedBy) && setSelectedCase({
+                                    _id: c._id,
+                                    caseNumber: c.caseNumber,
+                                    title: c.title,
+                                    chatWithUserId: getCaseUserId(c.filedBy)!,
+                                    chatWithLabel: 'Citizen',
+                                  })}
+                                  disabled={!getCaseUserId(c.filedBy)}
+                                  className="inline-flex items-center gap-1.5 text-sm font-medium text-cyan-600 hover:text-cyan-700 disabled:opacity-50 disabled:cursor-not-allowed disabled:text-slate-400"
+                                  title={getCaseUserId(c.filedBy) ? 'Chat with Citizen' : 'Citizen not available'}
+                                >
+                                  <User className="w-4 h-4" />
+                                  Citizen
+                                </button>
+                              </>
+                            )}
+                            {user?.role === 'judge' && getCaseUserId(c.assignedLawyer) && (
+                              <button
+                                type="button"
+                                onClick={() => setSelectedCase({
+                                  _id: c._id,
+                                  caseNumber: c.caseNumber,
+                                  title: c.title,
+                                  chatWithUserId: getCaseUserId(c.assignedLawyer)!,
+                                  chatWithLabel: 'Lawyer',
+                                })}
+                                className="inline-flex items-center gap-1.5 text-sm font-medium text-cyan-600 hover:text-cyan-700"
+                              >
+                                <Gavel className="w-4 h-4" />
+                                Lawyer
+                              </button>
+                            )}
+                          </div>
                           <span className="font-mono text-xs text-slate-600">
                             {getEnquiryRef(c)}
                           </span>
@@ -345,6 +512,7 @@ export const Chat: React.FC = () => {
               <div>
                 <h3 className="font-bold text-slate-900">{selectedCase.caseNumber}</h3>
                 <p className="text-sm text-slate-600 truncate max-w-[240px]">{selectedCase.title}</p>
+                <p className="text-xs text-cyan-600 font-medium mt-0.5">Chat with {selectedCase.chatWithLabel}</p>
               </div>
               <div className="flex items-center gap-1">
                 <button
