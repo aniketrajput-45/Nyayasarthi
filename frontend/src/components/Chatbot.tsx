@@ -58,7 +58,7 @@ export const Chatbot: React.FC = () => {
       const botMessage: ChatbotMessage = {
         id: (Date.now() + 1).toString(),
         type: 'bot',
-        text: data.response,
+        text: data.message || data.response,
       };
 
       setMessages((prev) => [...prev, botMessage]);
