@@ -1,42 +1,45 @@
 import express from 'express';
 import axios from 'axios';
 import { verifyToken } from '../middleware/auth.js';
-import Case from '../models/Case.js'; // This imports the logic from the file above
+import Case from '../models/Case.js';
 
 const router = express.Router();
-const GEMINI_API_URL = 'https://generativelanguage.googleapis.com/v1/models/gemini-2.5-flash:generateContent';
+const GEMINI_API_URL = 'https://generativelanguage.googleapis.com/v1/models/gemini-2.5-flash-lite:generateContent';
 
 router.post('/ask', verifyToken, async (req, res) => {
   const { query } = req.body;
-  const { id: userId, role: userRole } = req.user;
+  const { userId, role: userRole } = req.user; // Ensure this matches your verifyToken structure
 
   try {
-    // Search using the CORRECT field names from your schema
+    // Search for cases where user is involved
     const userCases = await Case.find({ 
-      $or: [{ filedBy: userId }, { assignedLawyer: userId }, { assignedJudge: userId }] 
+      $or: [{ filedBy: userId }, { assignedLawyer: userId }, { assignedJudge: userId }, { assignedPolice: userId }] 
     }).sort({ updatedAt: -1 }).lean();
 
+    // ENHANCED CONTEXT: Includes Evidence status and Timelines for the AI to "see"
     const caseContext = userCases.length > 0 
-      ? userCases.map((c, i) => `${i+1}. [Type: ${c.type}, Status: ${c.status}, Title: ${c.title}]`).join('\n')
+      ? userCases.map((c, i) => {
+          const evidenceStatus = c.documents.map(d => `${d.fileName} (${d.verificationStatus})`).join(', ');
+          const daysActive = Math.floor((new Date() - new Date(c.createdAt)) / (1000 * 60 * 60 * 24));
+          return `${i+1}. [Title: ${c.title}, Status: ${c.status}, Evidence: ${evidenceStatus || 'None'}, Days Since Filing: ${daysActive}]`;
+        }).join('\n')
       : "NO_ACTIVE_CASES_IN_DATABASE";
 
     const prompt = `
       [ROLE] 
-      You are the "LJS Legal Action Bot," an expert in Indian Law (BNS/IPC).
+      You are the "LJS Legal Action Bot," an expert in the new Indian Laws (BNS and BNSS).
       
       [CONTEXT]
       User Role: ${userRole}
       Current Case Data: ${caseContext}
 
-      [STRICT GUIDELINES]
-      1. BNS MAPPING: If the user describes an incident, identify the relevant BNS (Bharatiya Nyaya Sanhita) section.
-         - Examples: Theft -> BNS Section 303; Snatching -> BNS Section 304; Fraud -> BNS Section 318.
-      2. ROLE-BASED NUDGING: 
-         - For Citizens (User): If status is 'filed', tell them to upload ID proof and evidence.
-         - For Police/Lawyers: Remind them to verify pending files to reduce case pendency.
-      3. EVIDENCE CHECKLIST: Based on the Case 'Type', tell the user exactly what to upload (e.g., Receipts for Theft, Deeds for Property).
-      4. MAX LENGTH: 3 concise sentences.
-      5. SYSTEM NAVIGATION: Refer only to 'My Cases', 'File Case', or 'Case Details' tabs.
+      [STRICT AI GUIDELINES]
+      1. BNSS COMPLIANCE: If a case has been active for >60 days, warn the user about the mandatory 90-day BNSS deadline for chargesheets.
+      2. EVIDENCE FEEDBACK: If a document status is 'rejected', tell the user to check 'Case Details' to see the reason and re-upload.
+      3. VERIFICATION NUDGE: For Police/Lawyers, if evidence is 'pending', remind them to verify it immediately to prevent case pendency.
+      4. TRIAL READINESS: If all evidence is 'verified', tell the user the case is now "Trial Ready" for the Judge.
+      5. BNS MAPPING: Always map incident descriptions to the new BNS sections (e.g., Fraud is now BNS Section 318).
+      6. MAX LENGTH: 3 concise, professional sentences.
 
       [USER_QUERY]
       ${query}
@@ -47,8 +50,6 @@ router.post('/ask', verifyToken, async (req, res) => {
     });
 
     const botReply = response.data.candidates[0].content.parts[0].text;
-    
-    // SEND AS 'message' TO MATCH YOUR Chatbot.tsx
     res.json({ message: botReply }); 
 
   } catch (error) {

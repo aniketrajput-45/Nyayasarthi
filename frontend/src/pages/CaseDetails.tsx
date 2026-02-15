@@ -55,6 +55,36 @@ export const CaseDetails: React.FC = () => {
   if (loading) return <div className="p-8">Loading case details...</div>;
   if (!caseData) return <div className="p-8">Case not found.</div>;
 
+  const handleVerifyEvidence = async (docId: string, status: 'verified' | 'rejected') => {
+  try {
+    const response = await fetch(`${import.meta.env.VITE_API_URL}/cases/${id}/verify-evidence`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ documentId: docId, status }),
+    });
+
+    if (response.ok) {
+      // Refresh case data to show updated status
+      fetchCaseDetails(); 
+    }
+  } catch (err) {
+    console.error("Verification failed", err);
+  }
+};
+
+const getBNSSCompliance = (createdAt: string) => {
+  const diffTime = Math.abs(new Date().getTime() - new Date(createdAt).getTime());
+  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+  
+  // BNSS Nudge: Investigations should ideally finish in 90 days
+  if (diffDays > 90) return { text: "Critical: BNSS Timeline Violated", color: "text-red-600" };
+  if (diffDays > 60) return { text: "Warning: Approaching Statutory Limit", color: "text-orange-500" };
+  return { text: "Status: Within BNSS Timelines", color: "text-green-600" };
+};
+
   return (
     <div className="p-8 max-w-5xl mx-auto">
       {/* Back Button */}
@@ -170,6 +200,47 @@ export const CaseDetails: React.FC = () => {
                   </p>
                 </div>
               </div>
+
+
+              <div className="mt-8 bg-white rounded-lg shadow p-6">
+  <h3 className="text-xl font-bold text-slate-900 mb-4">Evidence Vault</h3>
+  <div className="grid gap-4">
+    {caseData.documents.map((doc: any) => (
+      <div key={doc._id} className="flex items-center justify-between p-4 border rounded-lg bg-slate-50">
+        <div>
+          <p className="font-semibold text-slate-800">{doc.fileName}</p>
+          <div className="flex gap-2 mt-1">
+            <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold uppercase ${
+              doc.verificationStatus === 'verified' ? 'bg-green-100 text-green-700' : 
+              doc.verificationStatus === 'rejected' ? 'bg-red-100 text-red-700' : 'bg-yellow-100 text-yellow-700'
+            }`}>
+              {doc.verificationStatus}
+            </span>
+            {doc.verifiedAt && <span className="text-[10px] text-slate-400">Verified on {new Date(doc.verifiedAt).toLocaleDateString()}</span>}
+          </div>
+        </div>
+
+        {/* Show Action Buttons only for Police/Lawyers if status is pending */}
+        {(user.role === 'police' || user.role === 'lawyer') && doc.verificationStatus === 'pending' && (
+          <div className="flex gap-2">
+            <button 
+              onClick={() => handleVerify(doc._id, 'verified')}
+              className="bg-green-600 text-white px-3 py-1 rounded text-xs hover:bg-green-700"
+            >
+              Verify
+            </button>
+            <button 
+              onClick={() => handleVerify(doc._id, 'rejected')}
+              className="bg-red-600 text-white px-3 py-1 rounded text-xs hover:bg-red-700"
+            >
+              Reject
+            </button>
+          </div>
+        )}
+      </div>
+    ))}
+  </div>
+</div>
 
               <div className="flex items-start gap-3">
                 <div className="p-2 bg-purple-50 rounded-lg"><Gavel size={18} className="text-purple-600" /></div>

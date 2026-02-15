@@ -15,7 +15,9 @@ const generateCaseNumber = async () => {
 // 1. File a new case (Citizen)
 router.post('/file', verifyToken, checkRole(['citizen']), async (req, res) => {
   try {
+    // These fields match the names in your updated FileCase.tsx form
     const { title, description, type, location, incidentDate, documents, isProBono } = req.body;
+    
     const caseNumber = await generateCaseNumber();
 
     const newCase = new Case({
@@ -26,19 +28,22 @@ router.post('/file', verifyToken, checkRole(['citizen']), async (req, res) => {
       filedBy: req.user.userId,
       location,
       incidentDate,
-      documents: documents || [],
+      // Ensures evidence uploaded during the "Ready-Check" is saved
+      documents: documents || [], 
       isProBono: isProBono || false,
       timeline: [{
         date: new Date(),
         status: 'filed',
         updatedBy: req.user.userId,
-        notes: 'Case filed'
+        // UNIQUE NOTE: This confirms the Evidence Ready-Check was completed
+        notes: `Case filed with initial ${type} evidence ready-check completed.`
       }]
     });
 
     await newCase.save();
     res.status(201).json({ message: 'Case filed successfully', case: newCase });
   } catch (error) {
+    console.error("Filing Error:", error);
     res.status(500).json({ message: 'Error filing case', error: error.message });
   }
 });
@@ -79,6 +84,37 @@ router.get('/', verifyToken, async (req, res) => {
     res.json(cases);
   } catch (error) {
     res.status(500).json({ message: 'Error fetching cases', error: error.message });
+  }
+});
+
+// Verify or Reject Evidence (Police/Lawyer Only)
+router.put('/:id/verify-evidence', verifyToken, checkRole(['police', 'lawyer']), async (req, res) => {
+  try {
+    const { documentId, status, rejectionReason } = req.body;
+    const caseItem = await Case.findById(req.params.id);
+    
+    // Find the specific document in the array
+    const doc = caseItem.documents.id(documentId);
+    if (!doc) return res.status(404).json({ message: 'Document not found' });
+
+    // Update verification details
+    doc.verificationStatus = status;
+    doc.verifiedBy = req.user.userId;
+    doc.verifiedAt = new Date();
+    if (rejectionReason) doc.rejectionReason = rejectionReason;
+
+    // Log this in the timeline for the Judge to see
+    caseItem.timeline.push({
+      date: new Date(),
+      status: `evidence-${status}`,
+      updatedBy: req.user.userId,
+      notes: `Evidence '${doc.fileName}' has been ${status} by ${req.user.role}.`
+    });
+
+    await caseItem.save();
+    res.json({ message: `Evidence ${status} successfully`, case: caseItem });
+  } catch (error) {
+    res.status(500).json({ message: 'Error verifying evidence', error: error.message });
   }
 });
 

@@ -12,6 +12,15 @@ const caseTypes = [
   "other",
 ];
 
+const evidenceChecklist: Record<string, { label: string; desc: string }[]> = {
+  civil: [{ label: "Legal Notice", desc: "Copy of the notice sent to the respondent." }],
+  criminal: [{ label: "FIR Copy / Complaint", desc: "Digital copy of the police report." }],
+  property: [{ label: "Ownership Deed", desc: "Title deed or tax receipts." }],
+  family: [{ label: "Marriage/Birth Certificate", desc: "Relevant relationship proof." }],
+  commercial: [{ label: "Invoices", desc: "Proof of financial transaction." }],
+  other: [{ label: "Supporting Docs", desc: "General evidence for the case." }]
+};
+
 export const FileCase: React.FC = () => {
   const { token } = useAuth();
   const navigate = useNavigate();
@@ -186,6 +195,34 @@ export const FileCase: React.FC = () => {
             />
           </div>
 
+          <div className="space-y-4 p-4 bg-slate-50 rounded-lg border-2 border-dashed border-slate-200">
+  <div className="flex items-center gap-2 text-blue-700">
+    <AlertCircle size={18} />
+    <h3 className="font-bold text-sm">Mandatory Evidence Ready-Check</h3>
+  </div>
+  <p className="text-xs text-slate-500">
+    Under BNSS guidelines, uploading these now prevents future court adjournments.
+  </p>
+
+  {evidenceChecklist[formData.type]?.map((req, i) => (
+    <div key={i} className="flex flex-col gap-2 p-3 bg-white rounded border border-slate-200">
+      <label className="text-xs font-semibold text-slate-700">{req.label}</label>
+      <input 
+        type="file" 
+        onChange={(e) => {
+          const file = e.target.files?.[0];
+          if (file) {
+            // Add file handling logic here
+            setFormData({ ...formData, documents: [...formData.documents, { fileName: file.name, fileUrl: "temp_url" }] });
+          }
+        }}
+        className="text-xs file:bg-blue-50 file:text-blue-700 file:border-0 file:rounded-md file:px-2 file:py-1"
+      />
+      <p className="text-[10px] text-slate-400 italic">{req.desc}</p>
+    </div>
+  ))}
+</div>
+
           <div className="flex items-center gap-2 mb-6 p-4 bg-blue-50 rounded-lg border border-blue-100">
             <input
               type="checkbox"
@@ -195,6 +232,7 @@ export const FileCase: React.FC = () => {
               id="proBono"
               className="w-5 h-5 text-blue-600 rounded focus:ring-blue-500"
             />
+            
             <label htmlFor="proBono" className="text-sm text-slate-700">
               <span className="font-bold text-slate-900">
                 Request Pro Bono (Free Legal Aid)
