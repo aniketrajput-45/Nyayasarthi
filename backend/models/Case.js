@@ -29,10 +29,19 @@ const caseSchema = new mongoose.Schema({
     enum: ['low', 'medium', 'high', 'urgent'],
     default: 'medium',
   },
+
+  
+  // --- AI INTEGRATION FIELDS ---
+  bnsSection: { type: String, default: null },
+  aiSuggestedEvidence: [{ type: String }],
+  requiresLawyerReview: { type: Boolean, default: false },
+
+  // --- PRIVACY & AID OPTIONS ---
   isProBono: { type: Boolean, default: false },
   isAnonymous: { type: Boolean, default: false },
   shareWithLegalAid: { type: Boolean, default: false },
   
+  // --- BNSS TIMELINE MANAGEMENT ---
   // Changed to optional so the middleware can calculate it automatically if missing
   deadlineDate: { 
     type: Date, 
@@ -42,16 +51,25 @@ const caseSchema = new mongoose.Schema({
   location: String,
   incidentDate: Date,
   
+  // --- ROLE-BASED ASSIGNMENTS ---
   filedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
   assignedPolice: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
   assignedLawyer: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
   assignedJudge: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
 
+  // --- UPDATED DOCUMENTS ARRAY (FOR VERIFICATION) ---
   documents: [
     {
       fileName: String,
       fileUrl: String,
       uploadedAt: { type: Date, default: Date.now },
+      // NEW: Needed for the verify/reject feature to work
+      verificationStatus: { 
+        type: String, 
+        enum: ['pending', 'verified', 'rejected'], 
+        default: 'pending' 
+      },
+      verifiedAt: Date,
     },
   ],
   

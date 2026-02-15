@@ -1,15 +1,22 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useAuth } from '../hooks/useAuth';
-import { MessageCircle, X, Send, AlertCircle } from 'lucide-react';
+import { useNavigate } from 'react-router-dom'; 
+import { MessageCircle, X, Send, AlertCircle, FilePlus } from 'lucide-react'; 
 
 interface ChatbotMessage {
   id: string;
   type: 'user' | 'bot';
   text: string;
+  bnsSection?: string;
+  caseCategory?: string;
+  requiredEvidence?: string[];
+  originalQuery?: string;
+  draftedDescription?: string; 
 }
 
 export const Chatbot: React.FC = () => {
   const { token } = useAuth();
+  const navigate = useNavigate(); 
   const [isOpen, setIsOpen] = useState(false);
   const [messages, setMessages] = useState<ChatbotMessage[]>([]);
   const [input, setInput] = useState('');
@@ -29,6 +36,8 @@ export const Chatbot: React.FC = () => {
     e.preventDefault();
     if (!input.trim()) return;
 
+    const currentQuery = input; 
+
     const userMessage: ChatbotMessage = {
       id: Date.now().toString(),
       type: 'user',
@@ -47,7 +56,7 @@ export const Chatbot: React.FC = () => {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ query: input }),
+        body: JSON.stringify({ query: currentQuery }), 
       });
 
       if (!response.ok) {
@@ -55,10 +64,46 @@ export const Chatbot: React.FC = () => {
       }
 
       const data = await response.json();
+      
+      // ==========================================
+      // --- NEW: SMART JSON PARSER ---
+      // ==========================================
+      let displayText = data.message || data.response || '';
+      let extractedBns = data.bnsSection;
+      let extractedCategory = data.caseCategory;
+      let extractedEvidence = data.requiredEvidence;
+      // CHANGE 1: Extract the drafted description
+      let extractedDraft = data.draftedDescription; 
+
+      const stringToParse = typeof data === 'string' ? data : displayText;
+
+      if (typeof stringToParse === 'string' && stringToParse.includes('"bnsSection"')) {
+        try {
+          const cleanString = stringToParse.replace(/```json/g, '').replace(/```/g, '').trim();
+          const aiData = JSON.parse(cleanString);
+          
+          displayText = aiData.message;
+          extractedBns = aiData.bnsSection;
+          extractedCategory = aiData.caseCategory;
+          extractedEvidence = aiData.requiredEvidence;
+          // CHANGE 2: Extract from the parsed string
+          extractedDraft = aiData.draftedDescription; 
+        } catch (parseError) {
+          console.error("Could not parse AI JSON string:", parseError);
+        }
+      }
+      // ==========================================
+
       const botMessage: ChatbotMessage = {
         id: (Date.now() + 1).toString(),
         type: 'bot',
-        text: data.message || data.response,
+        text: displayText, 
+        bnsSection: extractedBns, 
+        caseCategory: extractedCategory,
+        requiredEvidence: extractedEvidence,
+        // CHANGE 3: Add it to the message object
+        draftedDescription: extractedDraft,
+        originalQuery: currentQuery
       };
 
       setMessages((prev) => [...prev, botMessage]);
@@ -69,7 +114,7 @@ export const Chatbot: React.FC = () => {
     }
   };
 
-    if (!isOpen) {
+  if (!isOpen) {
     return (
       <button
         onClick={() => setIsOpen(true)}
@@ -81,7 +126,7 @@ export const Chatbot: React.FC = () => {
     );
   }
 
-   return (
+  return (
     <div className="fixed bottom-8 right-8 w-96 bg-white rounded-lg shadow-2xl flex flex-col h-[600px] z-50">
       <div className="bg-blue-600 text-white p-4 flex items-center justify-between rounded-t-lg">
         <h3 className="font-semibold">Legal Assistant</h3>
@@ -93,7 +138,7 @@ export const Chatbot: React.FC = () => {
         </button>
       </div>
 
-<div className="flex-1 overflow-y-auto p-4 space-y-4 bg-slate-50">
+      <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-slate-50">
         {messages.length === 0 ? (
           <div className="flex items-center justify-center h-full text-center">
             <div className="text-slate-600">
@@ -106,7 +151,7 @@ export const Chatbot: React.FC = () => {
             {messages.map((msg) => (
               <div
                 key={msg.id}
-                className={`flex ${msg.type === 'user' ? 'justify-end' : 'justify-start'}`}
+                className={`flex flex-col ${msg.type === 'user' ? 'items-end' : 'items-start'}`}
               >
                 <div
                   className={`max-w-xs px-4 py-2 rounded-lg text-sm ${
@@ -117,9 +162,30 @@ export const Chatbot: React.FC = () => {
                 >
                   {msg.text}
                 </div>
+
+                {msg.type === 'bot' && msg.bnsSection && (
+                  <button 
+                    onClick={() => {
+                      setIsOpen(false);
+                      navigate('/file-case', { 
+                        state: { 
+                          bnsSection: msg.bnsSection, 
+                          type: msg.caseCategory, 
+                          requiredEvidence: msg.requiredEvidence,
+                          // CHANGE 4: Prioritize the AI drafted description, if it fails, use the short query
+                          description: msg.draftedDescription || msg.originalQuery 
+                        } 
+                      });
+                    }}
+                    className="mt-2 flex items-center gap-1 text-xs font-semibold bg-green-100 text-green-700 px-3 py-1.5 rounded-full hover:bg-green-200 transition"
+                  >
+                    <FilePlus size={14} /> Use AI to Draft Case (BNS {msg.bnsSection})
+                  </button>
+                )}
+
               </div>
             ))}
-             {loading && (
+            {loading && (
               <div className="flex justify-start">
                 <div className="bg-white text-slate-900 border border-slate-200 px-4 py-2 rounded-lg text-sm">
                   <div className="flex gap-2">

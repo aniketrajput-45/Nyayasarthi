@@ -17,7 +17,8 @@ router.post('/file', verifyToken, checkRole(['citizen']), async (req, res) => {
   try {
     const { 
       title, description, type, location, incidentDate, 
-      documents, isProBono, isAnonymous, shareWithLegalAid 
+      documents, isProBono, isAnonymous, shareWithLegalAid,
+      bnsSection, aiSuggestedEvidence // <-- FIXED: Destructure these from the request
     } = req.body;
 
     const caseNumber = await generateCaseNumber();
@@ -48,6 +49,11 @@ router.post('/file', verifyToken, checkRole(['citizen']), async (req, res) => {
       shareWithLegalAid: shareWithLegalAid || false,
       deadlineDate, 
 
+      // --- FIXED: ADD THESE TO THE NEW CASE OBJECT ---
+      bnsSection: bnsSection || null,
+      aiSuggestedEvidence: aiSuggestedEvidence || [],
+      // ----------------------------------------------
+
       timeline: [{
         date: new Date(),
         status: 'pending_lawyer',
@@ -63,6 +69,33 @@ router.post('/file', verifyToken, checkRole(['citizen']), async (req, res) => {
   }
 });
 
+// NEW: Route for officials to verify uploaded evidence
+router.put('/:id/verify-evidence', verifyToken, checkRole(['lawyer', 'police']), async (req, res) => {
+  try {
+    const { documentId, status } = req.body; 
+    const caseItem = await Case.findById(req.params.id);
+
+    if (!caseItem) return res.status(404).json({ message: 'Case not found' });
+
+    const doc = caseItem.documents.id(documentId);
+    if (!doc) return res.status(404).json({ message: 'Document not found' });
+
+    doc.verificationStatus = status;
+    doc.verifiedAt = status === 'verified' ? new Date() : null;
+
+    caseItem.timeline.push({
+      date: new Date(),
+      status: caseItem.status,
+      updatedBy: req.user.userId,
+      notes: `Evidence "${doc.fileName}" was ${status} by ${req.user.role}`
+    });
+
+    await caseItem.save();
+    res.json({ message: `Evidence marked as ${status}`, case: caseItem });
+  } catch (error) {
+    res.status(500).json({ message: 'Error verifying evidence', error: error.message });
+  }
+});
 // 2. Get All Cases
 router.get('/', verifyToken, async (req, res) => {
   try {
@@ -74,6 +107,11 @@ router.get('/', verifyToken, async (req, res) => {
     } else if (req.user.role === 'police') {
       query.assignedPolice = req.user.userId;
     } else if (req.user.role === 'lawyer') {
+      query.$or = [
+        { assignedLawyer: req.user.userId },
+        { assignedLawyer: { $exists: false } },
+        { assignedLawyer: null }
+      ];
 
       // If 'acceptedOnly' is true (used for Chat), show ONLY assigned cases.
       // Otherwise (for Case Registry), show Assigned + Unassigned + Filed By Me.
@@ -223,7 +261,6 @@ router.post('/:id/hearings', verifyToken, async (req, res) => {
     res.status(500).json({ message: 'Error scheduling hearing', error: error.message });
   }
 });
-
 // 8. Submit to Court (Lawyer)
 router.put('/:id/submit-to-court', verifyToken, checkRole(['lawyer']), async (req, res) => {
   try {
