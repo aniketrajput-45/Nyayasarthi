@@ -11,6 +11,7 @@ import { Cases } from './pages/Cases';
 import { Chat } from './pages/Chat';
 import { Analytics } from './pages/Analytics';
 import { Chatbot } from './components/Chatbot';
+import { CaseDetails } from './pages/CaseDetails';
 
 function App() {
   return (
@@ -31,6 +32,7 @@ function App() {
             <Route path="/file-case" element={<FileCase />} />
             <Route path="/my-cases" element={<Cases />} />
             <Route path="/cases" element={<Cases />} />
+            <Route path="/case/:id" element={<CaseDetails />} />
             <Route path="/chat" element={<Chat />} />
             <Route path="/analytics" element={<Analytics />} />
           </Route>
