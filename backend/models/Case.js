@@ -99,6 +99,7 @@ const caseSchema = new mongoose.Schema({
     givenAt: Date,
   },
 
+
 }, { timestamps: true });
 
 export default mongoose.model('Case', caseSchema);
