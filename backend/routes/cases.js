@@ -74,25 +74,19 @@ router.get('/', verifyToken, async (req, res) => {
     } else if (req.user.role === 'police') {
       query.assignedPolice = req.user.userId;
     } else if (req.user.role === 'lawyer') {
-      
-      if (acceptedOnly) {
-        // Chat section: only cases this lawyer has accepted
+
+      // If 'acceptedOnly' is true (used for Chat), show ONLY assigned cases.
+      // Otherwise (for Case Registry), show Assigned + Unassigned + Filed By Me.
+      if (req.query.acceptedOnly === 'true' || req.query.acceptedOnly === true) {
         query.assignedLawyer = req.user.userId;
       } else {
-        // Case management: their cases OR unassigned (to accept)
         query.$or = [
-          { assignedLawyer: req.user.userId },
-          { assignedLawyer: { $exists: false } },
-          { assignedLawyer: null }
+          { assignedLawyer: req.user.userId },       // 1. Cases assigned to me
+          { assignedLawyer: { $exists: false } },    // 2. Cases with NO lawyer
+          { assignedLawyer: null },                  // 3. (Safety check for null)
+          { filedBy: req.user.userId }               // 4. Cases I FILED myself (NEW)
         ];
       }
-
-
-      query.$or = [
-        { assignedLawyer: req.user.userId },
-        { assignedLawyer: { $exists: false } },
-        { assignedLawyer: null }
-      ];
 
     } else if (req.user.role === 'judge') {
       query.status = { $in: ['filed', 'under-investigation', 'in-court', 'resolved'] };
