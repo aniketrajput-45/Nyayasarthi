@@ -5,20 +5,34 @@ import { verifyToken, checkRole } from '../middleware/auth.js';
 
 const router = express.Router();
 
-// Helper to generate Case ID (e.g., CASE-2024-001)
+// Helper to generate Case ID
 const generateCaseNumber = async () => {
   const count = await Case.countDocuments();
   const year = new Date().getFullYear();
   return `CASE-${year}-${(count + 1).toString().padStart(3, '0')}`;
 };
 
-// 1. File a new case (Citizen)
+// 1. File a new case (Citizen) -> STARTS AS "PENDING LAWYER"
 router.post('/file', verifyToken, checkRole(['citizen']), async (req, res) => {
   try {
-    // These fields match the names in your updated FileCase.tsx form
-    const { title, description, type, location, incidentDate, documents, isProBono } = req.body;
-    
+    const { 
+      title, description, type, location, incidentDate, 
+      documents, isProBono, isAnonymous, shareWithLegalAid 
+    } = req.body;
+
     const caseNumber = await generateCaseNumber();
+
+    // Initial Deadline (Will be reset when Lawyer submits to court)
+    const timelineRules = {
+      civil: 90,
+      criminal: 60,
+      cyber: 45,
+      corporate: 120
+    };
+    
+    const daysToSolve = timelineRules[type] || 60; 
+    const deadlineDate = new Date();
+    deadlineDate.setDate(deadlineDate.getDate() + daysToSolve);
 
     const newCase = new Case({
       caseNumber,
@@ -28,50 +42,51 @@ router.post('/file', verifyToken, checkRole(['citizen']), async (req, res) => {
       filedBy: req.user.userId,
       location,
       incidentDate,
-      // Ensures evidence uploaded during the "Ready-Check" is saved
-      documents: documents || [], 
+      documents: documents || [],
+      
+      // --- CHANGE 1: START AS PENDING ---
+      status: 'pending_lawyer', 
+      // ----------------------------------
+
       isProBono: isProBono || false,
+      isAnonymous: isAnonymous || false,
+      shareWithLegalAid: shareWithLegalAid || false,
+      deadlineDate, 
+
       timeline: [{
         date: new Date(),
-        status: 'filed',
+        status: 'pending_lawyer',
         updatedBy: req.user.userId,
-        // UNIQUE NOTE: This confirms the Evidence Ready-Check was completed
-        notes: `Case filed with initial ${type} evidence ready-check completed.`
+        notes: 'Case draft created, waiting for lawyer review'
       }]
     });
 
     await newCase.save();
-    res.status(201).json({ message: 'Case filed successfully', case: newCase });
+    res.status(201).json({ message: 'Case draft filed successfully', case: newCase });
   } catch (error) {
-    console.error("Filing Error:", error);
     res.status(500).json({ message: 'Error filing case', error: error.message });
   }
 });
 
-// 2. Get All Cases (With Logic for Roles)
+// 2. Get All Cases -> JUDGE ONLY SEES "FILED" CASES
 router.get('/', verifyToken, async (req, res) => {
   try {
     let query = {};
 
     if (req.user.role === 'citizen') {
-      // Citizens only see their own cases
       query.filedBy = req.user.userId;
-
     } else if (req.user.role === 'police') {
-      // Police ONLY see cases assigned to them
       query.assignedPolice = req.user.userId;
-
     } else if (req.user.role === 'lawyer') {
-      // Lawyers see: Their cases OR Unassigned Pro Bono cases
       query.$or = [
         { assignedLawyer: req.user.userId },
-        { assignedLawyer: { $exists: false } },
+        { assignedLawyer: { $exists: false } }, // See unassigned
         { assignedLawyer: null }
       ];
-
     } else if (req.user.role === 'judge') {
-      // Judges see EVERYTHING
-      query = {};
+      // --- CHANGE 2: FILTER HIDDEN DRAFTS ---
+      query.status = { $in: ['filed', 'under-investigation', 'in-court', 'resolved'] };
+      // --------------------------------------
     }
 
     const cases = await Case.find(query)
@@ -87,38 +102,7 @@ router.get('/', verifyToken, async (req, res) => {
   }
 });
 
-// Verify or Reject Evidence (Police/Lawyer Only)
-router.put('/:id/verify-evidence', verifyToken, checkRole(['police', 'lawyer']), async (req, res) => {
-  try {
-    const { documentId, status, rejectionReason } = req.body;
-    const caseItem = await Case.findById(req.params.id);
-    
-    // Find the specific document in the array
-    const doc = caseItem.documents.id(documentId);
-    if (!doc) return res.status(404).json({ message: 'Document not found' });
-
-    // Update verification details
-    doc.verificationStatus = status;
-    doc.verifiedBy = req.user.userId;
-    doc.verifiedAt = new Date();
-    if (rejectionReason) doc.rejectionReason = rejectionReason;
-
-    // Log this in the timeline for the Judge to see
-    caseItem.timeline.push({
-      date: new Date(),
-      status: `evidence-${status}`,
-      updatedBy: req.user.userId,
-      notes: `Evidence '${doc.fileName}' has been ${status} by ${req.user.role}.`
-    });
-
-    await caseItem.save();
-    res.json({ message: `Evidence ${status} successfully`, case: caseItem });
-  } catch (error) {
-    res.status(500).json({ message: 'Error verifying evidence', error: error.message });
-  }
-});
-
-// 3. Get Single Case by ID
+// 3. Get Single Case
 router.get('/:id', verifyToken, async (req, res) => {
   try {
     const caseItem = await Case.findById(req.params.id)
@@ -139,16 +123,12 @@ router.put('/:id/assign', verifyToken, checkRole(['judge']), async (req, res) =>
   try {
     const { assignedPolice, assignedLawyer } = req.body;
     const caseItem = await Case.findById(req.params.id);
-    
     if (!caseItem) return res.status(404).json({ message: 'Case not found' });
 
     if (assignedPolice) caseItem.assignedPolice = assignedPolice;
     if (assignedLawyer) caseItem.assignedLawyer = assignedLawyer;
     
-    // Auto-update status if assigned
-    if (caseItem.status === 'filed') {
-      caseItem.status = 'under-investigation';
-    }
+    if (caseItem.status === 'filed') caseItem.status = 'under-investigation';
 
     caseItem.timeline.push({
       date: new Date(),
@@ -164,12 +144,11 @@ router.put('/:id/assign', verifyToken, checkRole(['judge']), async (req, res) =>
   }
 });
 
-// 5. Claim Case (Lawyer - For Pro Bono)
+// 5. Claim Case (Lawyer)
 router.put('/:caseId/claim-lawyer', verifyToken, checkRole(['lawyer']), async (req, res) => {
   try {
     const caseData = await Case.findById(req.params.caseId);
     if (!caseData) return res.status(404).json({ message: 'Case not found' });
-    if (caseData.assignedLawyer) return res.status(400).json({ message: 'Already has a lawyer' });
 
     caseData.assignedLawyer = req.user.userId;
     caseData.timeline.push({
@@ -186,16 +165,14 @@ router.put('/:caseId/claim-lawyer', verifyToken, checkRole(['lawyer']), async (r
   }
 });
 
-// 6. Claim Case (Police - Self Assign)
+// 6. Claim Case (Police)
 router.put('/:caseId/claim', verifyToken, checkRole(['police']), async (req, res) => {
   try {
     const caseData = await Case.findById(req.params.caseId);
     if (!caseData) return res.status(404).json({ message: 'Case not found' });
-    if (caseData.assignedPolice) return res.status(400).json({ message: 'Case already assigned' });
 
     caseData.assignedPolice = req.user.userId;
     caseData.status = 'under-investigation';
-    
     caseData.timeline.push({
       date: new Date(),
       status: 'under-investigation',
@@ -204,13 +181,13 @@ router.put('/:caseId/claim', verifyToken, checkRole(['police']), async (req, res
     });
 
     await caseData.save();
-    res.json({ message: 'Case claimed successfully', case: caseData });
+    res.json({ message: 'Case claimed', case: caseData });
   } catch (error) {
     res.status(500).json({ message: 'Error claiming case', error: error.message });
   }
 });
 
-// Add a Hearing to a Case (Lawyer/Judge)
+// 7. Add Hearing (Lawyer/Judge)
 router.post('/:id/hearings', verifyToken, async (req, res) => {
   try {
     const { date, title, location, notes } = req.body;
@@ -218,21 +195,50 @@ router.post('/:id/hearings', verifyToken, async (req, res) => {
 
     if (!caseItem) return res.status(404).json({ message: 'Case not found' });
 
-    // Add hearing to the array
     caseItem.hearings.push({ date, title, location, notes });
-    
-    // Optional: Also update timeline
     caseItem.timeline.push({
       date: new Date(),
       status: 'hearing-scheduled',
       updatedBy: req.user.userId,
-      notes: `Hearing scheduled: ${title} on ${new Date(date).toLocaleDateString()}`
+      notes: `Hearing scheduled: ${title}`
     });
 
     await caseItem.save();
     res.json(caseItem);
   } catch (error) {
     res.status(500).json({ message: 'Error scheduling hearing', error: error.message });
+  }
+});
+
+// --- CHANGE 3: NEW ROUTE FOR LAWYER TO SUBMIT TO COURT ---
+router.put('/:id/submit-to-court', verifyToken, checkRole(['lawyer']), async (req, res) => {
+  try {
+    const caseItem = await Case.findById(req.params.id);
+    if (!caseItem) return res.status(404).json({ message: 'Case not found' });
+    
+    // 1. Change Status to 'filed' (Visible to Judge)
+    caseItem.status = 'filed';
+    
+    // 2. Start the Statutory Timer NOW
+    const timelineRules = { civil: 90, criminal: 60, cyber: 45, corporate: 120 };
+    const daysToSolve = timelineRules[caseItem.type] || 60;
+    
+    const deadline = new Date();
+    deadline.setDate(deadline.getDate() + daysToSolve);
+    caseItem.deadlineDate = deadline;
+
+    // 3. Add to Timeline
+    caseItem.timeline.push({
+      date: new Date(),
+      status: 'filed',
+      updatedBy: req.user.userId,
+      notes: 'Lawyer verified and submitted case to Court Registry'
+    });
+
+    await caseItem.save();
+    res.json({ message: 'Case submitted to Judge successfully', case: caseItem });
+  } catch (error) {
+    res.status(500).json({ message: 'Error submitting case', error: error.message });
   }
 });
 
