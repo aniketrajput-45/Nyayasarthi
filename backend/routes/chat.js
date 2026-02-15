@@ -5,52 +5,64 @@ import { verifyToken } from '../middleware/auth.js';
 
 const router = express.Router();
 
-// ----- Case-based chat (citizen + lawyer see same thread per case) -----
+// ----- Case-based chat: one thread per (case + participant pair) -----
 
-// Get or create chat room for a case (user must be filedBy or assignedLawyer)
-router.get('/case/:caseId/room', verifyToken, async (req, res) => {
-  try {
-    const caseDoc = await Case.findById(req.params.caseId);
-    if (!caseDoc) return res.status(404).json({ message: 'Case not found' });
+function getCaseParticipantIds(caseDoc) {
+  const ids = new Set();
+  if (caseDoc.filedBy) ids.add(caseDoc.filedBy.toString());
+  if (caseDoc.assignedPolice) ids.add(caseDoc.assignedPolice.toString());
+  if (caseDoc.assignedLawyer) ids.add(caseDoc.assignedLawyer.toString());
+  if (caseDoc.assignedJudge) ids.add(caseDoc.assignedJudge.toString());
+  return ids;
+}
 
-    const userId = req.user.userId;
-    const isCitizen = caseDoc.filedBy && caseDoc.filedBy.toString() === userId;
-    const isLawyer = caseDoc.assignedLawyer && caseDoc.assignedLawyer.toString() === userId;
-    if (!isCitizen && !isLawyer) {
-      return res.status(403).json({ message: 'You do not have access to this case chat' });
-    }
+function canAccessCase(caseDoc, userId) {
+  return getCaseParticipantIds(caseDoc).has(userId);
+}
 
-    let room = await ChatRoom.findOne({ caseId: req.params.caseId });
-    if (!room) {
-      room = new ChatRoom({
-        caseId: req.params.caseId,
-        participant1: caseDoc.filedBy,
-        participant2: caseDoc.assignedLawyer || null,
-        lastMessage: null,
-        lastMessageTime: null,
-      });
-      await room.save();
-    }
-    res.json(room);
-  } catch (error) {
-    res.status(500).json({ message: 'Error getting case chat room', error: error.message });
+// Find or create room for case + two participants (order normalized)
+async function getOrCreateThreadRoom(caseId, participantA, participantB) {
+  const [p1, p2] = [participantA, participantB].sort();
+  let room = await ChatRoom.findOne({
+    caseId,
+    $or: [
+      { participant1: p1, participant2: p2 },
+      { participant1: p2, participant2: p1 },
+    ],
+  });
+  if (!room) {
+    room = new ChatRoom({
+      caseId,
+      participant1: p1,
+      participant2: p2,
+    });
+    await room.save();
   }
-});
+  return room;
+}
 
-// Get messages for a case chat
-router.get('/case/:caseId/messages', verifyToken, async (req, res) => {
+// Get messages for a case thread (with specific other participant)
+router.get('/case/:caseId/thread/:otherParticipantId/messages', verifyToken, async (req, res) => {
   try {
     const caseDoc = await Case.findById(req.params.caseId);
     if (!caseDoc) return res.status(404).json({ message: 'Case not found' });
 
     const userId = req.user.userId;
-    const isCitizen = caseDoc.filedBy && caseDoc.filedBy.toString() === userId;
-    const isLawyer = caseDoc.assignedLawyer && caseDoc.assignedLawyer.toString() === userId;
-    if (!isCitizen && !isLawyer) {
+    const otherId = req.params.otherParticipantId;
+    if (!canAccessCase(caseDoc, userId)) {
       return res.status(403).json({ message: 'You do not have access to this case chat' });
     }
+    if (!canAccessCase(caseDoc, otherId)) {
+      return res.status(403).json({ message: 'Other participant does not have access to this case' });
+    }
 
-    const room = await ChatRoom.findOne({ caseId: req.params.caseId });
+    const room = await ChatRoom.findOne({
+      caseId: req.params.caseId,
+      $or: [
+        { participant1: userId, participant2: otherId },
+        { participant1: otherId, participant2: userId },
+      ],
+    });
     if (!room) return res.json([]);
 
     const messages = await ChatMessage.find({ roomId: room._id })
@@ -63,8 +75,8 @@ router.get('/case/:caseId/messages', verifyToken, async (req, res) => {
   }
 });
 
-// Send message in a case chat
-router.post('/case/:caseId/message', verifyToken, async (req, res) => {
+// Send message in a case thread
+router.post('/case/:caseId/thread/:otherParticipantId/message', verifyToken, async (req, res) => {
   try {
     const { message } = req.body;
     if (!message || typeof message !== 'string' || !message.trim()) {
@@ -75,21 +87,15 @@ router.post('/case/:caseId/message', verifyToken, async (req, res) => {
     if (!caseDoc) return res.status(404).json({ message: 'Case not found' });
 
     const userId = req.user.userId;
-    const isCitizen = caseDoc.filedBy && caseDoc.filedBy.toString() === userId;
-    const isLawyer = caseDoc.assignedLawyer && caseDoc.assignedLawyer.toString() === userId;
-    if (!isCitizen && !isLawyer) {
+    const otherId = req.params.otherParticipantId;
+    if (!canAccessCase(caseDoc, userId)) {
       return res.status(403).json({ message: 'You do not have access to this case chat' });
     }
-
-    let room = await ChatRoom.findOne({ caseId: req.params.caseId });
-    if (!room) {
-      room = new ChatRoom({
-        caseId: req.params.caseId,
-        participant1: caseDoc.filedBy,
-        participant2: caseDoc.assignedLawyer || null,
-      });
-      await room.save();
+    if (!canAccessCase(caseDoc, otherId)) {
+      return res.status(403).json({ message: 'Other participant does not have access to this case' });
     }
+
+    const room = await getOrCreateThreadRoom(req.params.caseId, userId, otherId);
 
     const newMessage = new ChatMessage({
       roomId: room._id,
@@ -103,6 +109,60 @@ router.post('/case/:caseId/message', verifyToken, async (req, res) => {
       lastMessageTime: new Date(),
     });
 
+    const populated = await ChatMessage.findById(newMessage._id).populate('senderId', 'fullName email');
+    res.status(201).json(populated);
+  } catch (error) {
+    res.status(500).json({ message: 'Error sending message', error: error.message });
+  }
+});
+
+// Legacy: single room per case (kept for backward compat; prefer thread API)
+router.get('/case/:caseId/room', verifyToken, async (req, res) => {
+  try {
+    const caseDoc = await Case.findById(req.params.caseId);
+    if (!caseDoc) return res.status(404).json({ message: 'Case not found' });
+    const userId = req.user.userId;
+    if (!canAccessCase(caseDoc, userId)) return res.status(403).json({ message: 'No access' });
+    const otherId = caseDoc.assignedLawyer?.toString() || caseDoc.filedBy?.toString();
+    if (!otherId) return res.status(400).json({ message: 'No other participant' });
+    const room = await getOrCreateThreadRoom(req.params.caseId, userId, otherId);
+    res.json(room);
+  } catch (error) {
+    res.status(500).json({ message: 'Error getting room', error: error.message });
+  }
+});
+
+router.get('/case/:caseId/messages', verifyToken, async (req, res) => {
+  try {
+    const caseDoc = await Case.findById(req.params.caseId);
+    if (!caseDoc) return res.status(404).json({ message: 'Case not found' });
+    const userId = req.user.userId;
+    if (!canAccessCase(caseDoc, userId)) return res.status(403).json({ message: 'No access' });
+    const otherId = caseDoc.assignedLawyer?.toString() || caseDoc.filedBy?.toString();
+    if (!otherId) return res.json([]);
+    const room = await ChatRoom.findOne({ caseId: req.params.caseId, $or: [{ participant1: userId, participant2: otherId }, { participant1: otherId, participant2: userId }] });
+    if (!room) return res.json([]);
+    const messages = await ChatMessage.find({ roomId: room._id }).populate('senderId', 'fullName email').sort({ createdAt: 1 }).limit(200);
+    res.json(messages);
+  } catch (error) {
+    res.status(500).json({ message: 'Error fetching messages', error: error.message });
+  }
+});
+
+router.post('/case/:caseId/message', verifyToken, async (req, res) => {
+  try {
+    const { message } = req.body;
+    if (!message || typeof message !== 'string' || !message.trim()) return res.status(400).json({ message: 'Message is required' });
+    const caseDoc = await Case.findById(req.params.caseId);
+    if (!caseDoc) return res.status(404).json({ message: 'Case not found' });
+    const userId = req.user.userId;
+    if (!canAccessCase(caseDoc, userId)) return res.status(403).json({ message: 'No access' });
+    const otherId = caseDoc.assignedLawyer?.toString() || caseDoc.filedBy?.toString();
+    if (!otherId) return res.status(400).json({ message: 'No other participant' });
+    const room = await getOrCreateThreadRoom(req.params.caseId, userId, otherId);
+    const newMessage = new ChatMessage({ roomId: room._id, senderId: userId, message: message.trim() });
+    await newMessage.save();
+    await ChatRoom.findByIdAndUpdate(room._id, { lastMessage: message.trim(), lastMessageTime: new Date() });
     const populated = await ChatMessage.findById(newMessage._id).populate('senderId', 'fullName email');
     res.status(201).json(populated);
   } catch (error) {
