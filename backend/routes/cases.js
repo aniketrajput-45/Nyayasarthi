@@ -44,9 +44,10 @@ router.post('/file', verifyToken, checkRole(['citizen']), async (req, res) => {
       incidentDate,
       documents: documents || [],
       
-      // STATUS STARTS AS PENDING (Hidden from Judge)
+      // --- CHANGE 1: START AS PENDING ---
       status: 'pending_lawyer', 
-      
+      // ----------------------------------
+
       isProBono: isProBono || false,
       isAnonymous: isAnonymous || false,
       shareWithLegalAid: shareWithLegalAid || false,
@@ -83,8 +84,9 @@ router.get('/', verifyToken, async (req, res) => {
         { assignedLawyer: null }
       ];
     } else if (req.user.role === 'judge') {
-      // JUDGE FILTER: Only show cases that are formally filed
+      // --- CHANGE 2: FILTER HIDDEN DRAFTS ---
       query.status = { $in: ['filed', 'under-investigation', 'in-court', 'resolved'] };
+      // --------------------------------------
     }
 
     const cases = await Case.find(query)
@@ -142,26 +144,18 @@ router.put('/:id/assign', verifyToken, checkRole(['judge']), async (req, res) =>
   }
 });
 
-// 5. Claim Case (Lawyer) -> CRITICAL FIX: PRESERVE 'PENDING_LAWYER' STATUS
+// 5. Claim Case (Lawyer)
 router.put('/:caseId/claim-lawyer', verifyToken, checkRole(['lawyer']), async (req, res) => {
   try {
     const caseData = await Case.findById(req.params.caseId);
     if (!caseData) return res.status(404).json({ message: 'Case not found' });
 
-    // Assign the Lawyer
     caseData.assignedLawyer = req.user.userId;
-    
-    // FORCE STATUS TO STAY 'pending_lawyer' 
-    // This ensures it stays in the "My Drafts" (Yellow Card) section
-    if (caseData.status === 'pending_lawyer') {
-        caseData.status = 'pending_lawyer'; 
-    }
-
     caseData.timeline.push({
       date: new Date(),
-      status: 'pending_lawyer', // Log as draft review
+      status: 'In Legal Review',
       updatedBy: req.user.userId,
-      notes: 'Lawyer accepted case for pre-filing review',
+      notes: 'Lawyer accepted the case',
     });
 
     await caseData.save();
@@ -216,16 +210,16 @@ router.post('/:id/hearings', verifyToken, async (req, res) => {
   }
 });
 
-// 8. Submit to Court (Lawyer) -> ACTIVATES THE TIMER
+// --- CHANGE 3: NEW ROUTE FOR LAWYER TO SUBMIT TO COURT ---
 router.put('/:id/submit-to-court', verifyToken, checkRole(['lawyer']), async (req, res) => {
   try {
     const caseItem = await Case.findById(req.params.id);
     if (!caseItem) return res.status(404).json({ message: 'Case not found' });
     
-    // 1. Change Status to 'filed' (Now Visible to Judge)
+    // 1. Change Status to 'filed' (Visible to Judge)
     caseItem.status = 'filed';
     
-    // 2. Start the Statutory Timer NOW (BNSS Logic)
+    // 2. Start the Statutory Timer NOW
     const timelineRules = { civil: 90, criminal: 60, cyber: 45, corporate: 120 };
     const daysToSolve = timelineRules[caseItem.type] || 60;
     
