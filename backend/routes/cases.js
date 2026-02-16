@@ -171,7 +171,7 @@ router.put('/:id/assign', verifyToken, checkRole(['judge']), async (req, res) =>
 
     // Make sure the judge doing the assignment is recorded on the case
     caseItem.assignedJudge = req.user.userId;
-=======
+
 
     // --- THE FIX: Auto-assign the Judge who is doing this action ---
     if (!caseItem.assignedJudge) {
