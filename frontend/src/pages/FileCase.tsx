@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../hooks/useAuth';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { Shield, EyeOff, Users, FileText, MapPin, Calendar, Info, CheckCircle, BookOpen } from 'lucide-react'; // <-- ADDED BookOpen HERE
+import { Shield, EyeOff, Users, FileText, MapPin, Calendar, Info, CheckCircle, BookOpen, UploadCloud } from 'lucide-react';
 
 export const FileCase: React.FC = () => {
   const { token } = useAuth();
@@ -10,6 +10,9 @@ export const FileCase: React.FC = () => {
   const prefillData = location.state as any; 
 
   const [loading, setLoading] = useState(false);
+  
+  // State to hold selected files for upload
+  const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   
   const [formData, setFormData] = useState({
     title: '',
@@ -24,7 +27,6 @@ export const FileCase: React.FC = () => {
     aiSuggestedEvidence: prefillData?.requiredEvidence || []    
   });
 
-  // --- NEW ADDITION: FORCE FORM UPDATE ---
   // This ensures the form updates with new AI data even if the page was already open
   useEffect(() => {
     if (prefillData) {
@@ -37,7 +39,6 @@ export const FileCase: React.FC = () => {
       }));
     }
   }, [prefillData]);
-  // ---------------------------------------
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const value = e.target.type === 'checkbox' ? (e.target as HTMLInputElement).checked : e.target.value;
@@ -47,21 +48,57 @@ export const FileCase: React.FC = () => {
     });
   };
 
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files) {
+      setSelectedFiles(Array.from(e.target.files));
+    }
+  };
+
+  // --- THIS IS THE FIX: Convert File to Base64 String ---
+  const toBase64 = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      reader.onload = () => resolve(reader.result as string);
+      reader.onerror = error => reject(error);
+    });
+  };
+  // ------------------------------------------------------
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
+    
     try {
+      // --- THIS IS THE FIX: Process real files instead of mock URLs ---
+      const uploadedDocuments = await Promise.all(
+        selectedFiles.map(async (file) => {
+          const base64Data = await toBase64(file);
+          return {
+            fileName: file.name,
+            fileUrl: base64Data, // We pass the real file data string here!
+            verificationStatus: 'pending' 
+          };
+        })
+      );
+
+      // Merge the documents into the final payload
+      const payload = {
+        ...formData,
+        documents: uploadedDocuments
+      };
+
       const res = await fetch(`${import.meta.env.VITE_API_URL}/cases/file`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`
         },
-        body: JSON.stringify(formData) 
+        body: JSON.stringify(payload) 
       });
 
       if (res.ok) {
-        alert("Case Filed Successfully! Redirecting to Dashboard...");
+        alert("Case and Evidence Filed Successfully! Redirecting to Dashboard...");
         navigate('/cases');
       } else {
         alert("Error filing case. Please try again.");
@@ -93,11 +130,34 @@ export const FileCase: React.FC = () => {
               Based on your chat, this incident falls under <strong>BNS Section {formData.bnsSection}</strong>. 
               To avoid delays, please ensure you have the following documents ready to upload later:
             </p>
-            <ul className="list-disc pl-5 text-sm text-blue-700 space-y-1">
+            <ul className="list-disc pl-5 text-sm text-blue-700 space-y-1 mb-4">
               {formData.aiSuggestedEvidence.map((doc: string, idx: number) => (
                 <li key={idx}>{doc}</li>
               ))}
             </ul>
+
+            {/* --- FILE UPLOAD SECTION --- */}
+            <div className="bg-white p-4 rounded-md border border-blue-200 mt-4">
+              <label className="block text-sm font-semibold text-blue-900 mb-2 flex items-center gap-2">
+                <UploadCloud size={16} /> Upload Required Evidence
+              </label>
+              <input 
+                type="file" 
+                multiple 
+                onChange={handleFileChange}
+                className="w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 cursor-pointer"
+              />
+              {selectedFiles.length > 0 && (
+                <div className="mt-3 text-xs text-slate-600">
+                  <p className="font-semibold mb-1">Files ready to be submitted to the vault:</p>
+                  <ul className="list-inside list-disc">
+                    {selectedFiles.map((f, i) => <li key={i}>{f.name}</li>)}
+                  </ul>
+                </div>
+              )}
+            </div>
+            {/* --------------------------------- */}
+
           </div>
         )}
 
@@ -122,7 +182,7 @@ export const FileCase: React.FC = () => {
                </select>
             </div>
             
-            {/* --- THIS IS THE MISSING BNS SECTION INPUT FIELD --- */}
+            {/* --- BNS SECTION INPUT FIELD --- */}
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-1">Applicable Law (BNS Section)</label>
               <div className="relative">
@@ -136,7 +196,6 @@ export const FileCase: React.FC = () => {
                 />
               </div>
             </div>
-            {/* --------------------------------------------------- */}
 
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-1">Location</label>
@@ -189,7 +248,6 @@ export const FileCase: React.FC = () => {
                   type="checkbox" 
                   onChange={(e) => {
                     handleChange(e);
-                    // Automatically check isProBono if this is checked
                     setFormData(prev => ({ ...prev, isProBono: e.target.checked })); 
                   }} 
                   className="w-4 h-4 text-purple-600 border-gray-300 rounded focus:ring-purple-500" 

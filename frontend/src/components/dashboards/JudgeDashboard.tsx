@@ -2,12 +2,11 @@ import React, { useEffect, useState } from 'react';
 import { useAuth } from '../../hooks/useAuth';
 import { 
   Gavel, AlertCircle, CheckCircle, Clock, 
-  ArrowRight, Shield, Briefcase 
+  ArrowRight, Shield, Briefcase, Search, UserCheck 
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { AssignModal } from '../AssignModal'; 
 
-// Updated Interface to handle populated objects
 interface Case {
   _id: string;
   title: string;
@@ -15,7 +14,6 @@ interface Case {
   status: string;
   type: string;
   deadlineDate: string;
-  // Lawyer is an object because it is populated by the backend
   assignedLawyer?: { 
     _id: string; 
     fullName: string; 
@@ -29,13 +27,18 @@ interface Case {
 export const JudgeDashboard: React.FC = () => {
   const { token } = useAuth();
   const navigate = useNavigate();
+  
+  // Stats
   const [stats, setStats] = useState({ total: 0, pending: 0, unassigned: 0 });
-  const [unassignedCases, setUnassignedCases] = useState<Case[]>([]);
+  
+  // Data Buckets
+  const [unassignedCases, setUnassignedCases] = useState<Case[]>([]); // Need Police
+  const [assignedCases, setAssignedCases] = useState<Case[]>([]);     // Already Assigned (My Docket)
+  
   const [loading, setLoading] = useState(true);
 
   // Modal State
   const [assignModalOpen, setAssignModalOpen] = useState(false);
-  // We store the whole case object now to pass the lawyer's name to the modal
   const [selectedCase, setSelectedCase] = useState<Case | null>(null);
 
   useEffect(() => {
@@ -48,17 +51,20 @@ export const JudgeDashboard: React.FC = () => {
         if (res.ok) {
           const allCases: Case[] = await res.json();
           
-          // FILTER CHANGE: Judge only cares if Police is missing. 
-          // (Lawyer is assumed to be present as they filed the case)
-          const leftovers = allCases.filter(c => !c.assignedPolice && c.status !== 'resolved');
+          // 1. ACTION REQUIRED: Cases waiting for Police Assignment
+          const pending = allCases.filter(c => !c.assignedPolice && c.status !== 'resolved');
           
+          // 2. MY DOCKET: Cases where Police IS assigned (Ongoing)
+          const active = allCases.filter(c => c.assignedPolice && c.status !== 'resolved');
+
           setStats({
             total: allCases.length,
             pending: allCases.filter(c => c.status !== 'resolved').length,
-            unassigned: leftovers.length
+            unassigned: pending.length
           });
           
-          setUnassignedCases(leftovers);
+          setUnassignedCases(pending);
+          setAssignedCases(active);
         }
       } catch (error) {
         console.error("Error loading judge data", error);
@@ -85,7 +91,7 @@ export const JudgeDashboard: React.FC = () => {
 
   const handleAssignSuccess = () => {
     setAssignModalOpen(false);
-    window.location.reload(); // Refresh to remove the assigned case from the list
+    window.location.reload(); 
   };
 
   if (loading) return <div className="p-8">Loading Judicial Overview...</div>;
@@ -96,7 +102,7 @@ export const JudgeDashboard: React.FC = () => {
         <h1 className="text-3xl font-bold text-slate-900 flex items-center gap-3">
           <Gavel className="text-slate-700" size={32} /> Judicial Dashboard
         </h1>
-        <p className="text-slate-500 mt-1">Review pending cases and assign investigating officers.</p>
+        <p className="text-slate-500 mt-1">Manage case assignments and court proceedings.</p>
       </header>
 
       {/* STATS ROW */}
@@ -114,8 +120,8 @@ export const JudgeDashboard: React.FC = () => {
           <div className="flex items-center gap-4">
             <div className="p-3 bg-blue-100 text-blue-600 rounded-lg"><Clock size={24} /></div>
             <div>
-              <p className="text-sm font-medium text-slate-500">Active Trials</p>
-              <h3 className="text-3xl font-bold text-slate-900">{stats.pending}</h3>
+              <p className="text-sm font-medium text-slate-500">Active Docket</p>
+              <h3 className="text-3xl font-bold text-slate-900">{assignedCases.length}</h3>
             </div>
           </div>
         </div>
@@ -130,27 +136,29 @@ export const JudgeDashboard: React.FC = () => {
         </div>
       </div>
 
-      {/* "ACTION REQUIRED" TABLE */}
-      <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+      {/* SECTION 1: ACTION REQUIRED (UNASSIGNED) */}
+      <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden mb-12">
         <div className="px-6 py-4 border-b border-slate-100 bg-red-50 flex justify-between items-center">
           <div>
-            <h3 className="font-bold text-red-900 text-lg">Action Required</h3>
-            <p className="text-red-700 text-sm">Cases requiring a Police Officer assignment.</p>
+            <h3 className="font-bold text-red-900 text-lg flex items-center gap-2">
+              <AlertCircle size={20} /> Action Required
+            </h3>
+            <p className="text-red-700 text-sm">Assign Investigating Officers to these cases immediately.</p>
           </div>
         </div>
 
         {unassignedCases.length === 0 ? (
           <div className="p-8 text-center text-slate-500">
             <CheckCircle className="mx-auto text-green-500 mb-2" size={32} />
-            <p>All active cases have investigating officers assigned.</p>
+            <p>No pending assignments. You are all caught up!</p>
           </div>
         ) : (
           <table className="w-full text-left">
             <thead className="bg-slate-50 text-slate-500 text-xs uppercase font-semibold">
               <tr>
                 <th className="px-6 py-3">Case Info</th>
-                <th className="px-6 py-3">Statutory Deadline (BNSS)</th>
-                <th className="px-6 py-3">Present Lawyer</th>
+                <th className="px-6 py-3">Deadline</th>
+                <th className="px-6 py-3">Status</th>
                 <th className="px-6 py-3 text-right">Action</th>
               </tr>
             </thead>
@@ -158,44 +166,24 @@ export const JudgeDashboard: React.FC = () => {
               {unassignedCases.map((c) => {
                 const timer = getTimerStatus(c.deadlineDate);
                 const TimerIcon = timer.icon;
-
                 return (
                   <tr key={c._id} className="hover:bg-slate-50">
                     <td className="px-6 py-4">
                       <p className="font-bold text-slate-900">{c.title}</p>
                       <p className="text-xs text-slate-500 font-mono">{c.caseNumber}</p>
-                      <span className="text-xs bg-slate-100 px-2 py-0.5 rounded mt-1 inline-block capitalize">{c.type}</span>
                     </td>
-                    
-                    {/* TIMER */}
                     <td className="px-6 py-4">
                       <div className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-lg ${timer.color}`}>
-                        <TimerIcon size={16} className={timer.text.includes('OVERDUE') ? 'animate-pulse' : ''} />
-                        <span className="text-xs font-bold uppercase tracking-wide">{timer.text}</span>
+                        <TimerIcon size={16} />
+                        <span className="text-xs font-bold uppercase">{timer.text}</span>
                       </div>
                     </td>
-
-                    {/* LAWYER STATUS */}
                     <td className="px-6 py-4">
-                       {c.assignedLawyer ? (
-                         <div className="flex items-center gap-2">
-                           <div className="w-6 h-6 bg-blue-100 rounded-full flex items-center justify-center text-blue-600 text-xs font-bold">
-                             {c.assignedLawyer.fullName.charAt(0)}
-                           </div>
-                           <span className="text-sm text-slate-700 font-medium">Adv. {c.assignedLawyer.fullName.split(' ')[0]}</span>
-                         </div>
-                       ) : (
-                         <span className="text-xs text-orange-600 font-bold bg-orange-50 px-2 py-1 rounded">Pending Lawyer</span>
-                       )}
+                       <span className="text-xs text-orange-600 font-bold bg-orange-50 px-2 py-1 rounded">Needs Police</span>
                     </td>
-
-                    {/* ASSIGN BUTTON */}
                     <td className="px-6 py-4 text-right">
                       <button 
-                        onClick={() => {
-                          setSelectedCase(c);
-                          setAssignModalOpen(true);
-                        }}
+                        onClick={() => { setSelectedCase(c); setAssignModalOpen(true); }}
                         className="bg-slate-900 text-white text-sm px-4 py-2 rounded-lg hover:bg-slate-800 transition shadow-sm flex items-center gap-2 ml-auto"
                       >
                         <Shield size={14} /> Assign Police
@@ -208,14 +196,82 @@ export const JudgeDashboard: React.FC = () => {
           </table>
         )}
       </div>
-      
-      <div className="mt-6 text-center">
-        <button onClick={() => navigate('/cases')} className="text-slate-600 hover:text-slate-900 font-medium flex items-center justify-center gap-2 mx-auto">
-          View All Case History <ArrowRight size={16} />
-        </button>
+
+      {/* SECTION 2: MY DOCKET (ASSIGNED / ONGOING) */}
+      <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+        <div className="px-6 py-4 border-b border-slate-100 bg-blue-50 flex justify-between items-center">
+          <div>
+            <h3 className="font-bold text-blue-900 text-lg flex items-center gap-2">
+              <Gavel size={20} /> My Active Docket
+            </h3>
+            <p className="text-blue-700 text-sm">Ongoing cases currently under investigation or trial.</p>
+          </div>
+          <div className="bg-white px-3 py-1 rounded-full text-blue-800 text-xs font-bold border border-blue-100">
+            {assignedCases.length} Active Cases
+          </div>
+        </div>
+
+        {assignedCases.length === 0 ? (
+          <div className="p-8 text-center text-slate-500">
+            <p className="italic">No active cases in your docket.</p>
+          </div>
+        ) : (
+          <table className="w-full text-left">
+            <thead className="bg-slate-50 text-slate-500 text-xs uppercase font-semibold">
+              <tr>
+                <th className="px-6 py-3">Case Info</th>
+                <th className="px-6 py-3">Deadline</th>
+                <th className="px-6 py-3">Assigned Team</th>
+                <th className="px-6 py-3 text-right">Action</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {assignedCases.map((c) => {
+                const timer = getTimerStatus(c.deadlineDate);
+                return (
+                  <tr key={c._id} className="hover:bg-slate-50">
+                    <td className="px-6 py-4">
+                      <p className="font-bold text-slate-900">{c.title}</p>
+                      <p className="text-xs text-slate-500 font-mono">{c.caseNumber}</p>
+                      <span className="text-xs bg-slate-100 px-2 py-0.5 rounded mt-1 inline-block capitalize">{c.type}</span>
+                    </td>
+                    <td className="px-6 py-4">
+                       <span className={`text-xs font-bold px-2 py-1 rounded ${timer.color.split(' ')[0]} ${timer.color.split(' ')[1]}`}>
+                         {timer.text}
+                       </span>
+                    </td>
+                    <td className="px-6 py-4">
+                       <div className="flex flex-col gap-1">
+                          {c.assignedLawyer && (
+                             <div className="flex items-center gap-1.5 text-xs text-slate-700">
+                               <Briefcase size={12} className="text-slate-400"/> 
+                               Adv. {c.assignedLawyer.fullName.split(' ')[0]}
+                             </div>
+                          )}
+                          {c.assignedPolice && (
+                             <div className="flex items-center gap-1.5 text-xs text-slate-700">
+                               <Shield size={12} className="text-blue-500"/> 
+                               Off. {c.assignedPolice.fullName.split(' ')[0]}
+                             </div>
+                          )}
+                       </div>
+                    </td>
+                    <td className="px-6 py-4 text-right">
+                      <button 
+                        onClick={() => navigate(`/case/${c._id}`)}
+                        className="text-blue-600 hover:text-blue-800 font-medium text-sm flex items-center gap-1 ml-auto"
+                      >
+                         View Details <ArrowRight size={14} />
+                      </button>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        )}
       </div>
 
-      {/* UPDATE: Passing currentLawyer to the Modal */}
       <AssignModal 
         isOpen={assignModalOpen} 
         onClose={() => setAssignModalOpen(false)}
