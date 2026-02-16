@@ -189,6 +189,7 @@ router.put('/:id/assign', verifyToken, checkRole(['judge']), async (req, res) =>
       }).save();
     }
 
+
     // --- NOTIFICATION 2: Notify the Lawyer (if one exists) ---
     // We notify them that their case has moved to investigation
     if (caseItem.assignedLawyer && assignedPolice) {
@@ -199,6 +200,18 @@ router.put('/:id/assign', verifyToken, checkRole(['judge']), async (req, res) =>
         caseId: caseItem._id
       }).save();
     }
+
+    // Make sure the judge doing the assignment is recorded on the case
+    caseItem.assignedJudge = req.user.userId;
+
+
+    // --- THE FIX: Auto-assign the Judge who is doing this action ---
+    if (!caseItem.assignedJudge) {
+       caseItem.assignedJudge = req.user.userId; 
+    }
+
+    
+    if (caseItem.status === 'filed') caseItem.status = 'under-investigation';
 
     if (caseItem.status === 'filed') caseItem.status = 'under-investigation';
 

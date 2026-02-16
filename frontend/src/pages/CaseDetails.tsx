@@ -4,7 +4,7 @@ import { useAuth } from '../hooks/useAuth';
 import { generateFIR } from '../utils/generatePDF'; 
 import { 
   FileText, Calendar, MapPin, User, Clock, 
-  Download, ChevronLeft, Shield, Gavel, Briefcase, BookOpen, AlertCircle
+  Download, ChevronLeft, Shield, Gavel, Briefcase, BookOpen, AlertCircle, ExternalLink
 } from 'lucide-react';
 
 interface CaseDetail {
@@ -80,6 +80,26 @@ export const CaseDetails: React.FC = () => {
     }
   };
 
+  // --- THIS IS THE FIX: Safe Base64 Document Viewer ---
+  const handleViewDocument = (fileUrl: string) => {
+    // If it is a real standard web URL (like AWS or Cloudinary)
+    if (fileUrl.startsWith('http')) {
+      window.open(fileUrl, '_blank');
+      return;
+    }
+    
+    // If it is a Base64 string from our Hackathon trick
+    const newWindow = window.open();
+    if (newWindow) {
+      newWindow.document.write(
+        `<iframe src="${fileUrl}" frameborder="0" style="border:0; top:0px; left:0px; bottom:0px; right:0px; width:100%; height:100%;" allowfullscreen></iframe>`
+      );
+    } else {
+      alert("Please allow pop-ups in your browser to view this document.");
+    }
+  };
+  // ----------------------------------------------------
+
   if (loading) return <div className="p-8 text-center">Loading case details...</div>;
   if (!caseData) return <div className="p-8 text-center">Case not found.</div>;
 
@@ -93,7 +113,6 @@ export const CaseDetails: React.FC = () => {
       <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 mb-6">
         <div className="flex justify-between items-start">
           <div>
-            {/* --- BNS SECTION BADGE IN HEADER --- */}
             {caseData.bnsSection ? (
               <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-md text-xs font-bold mb-3 bg-blue-600 text-white border border-blue-700 shadow-sm">
                  <BookOpen size={14} /> Applicable Law: BNS Section {caseData.bnsSection}
@@ -133,7 +152,7 @@ export const CaseDetails: React.FC = () => {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 space-y-6">
           
-          {/* AI CHECKLIST (STAYS HERE FOR DETAILED VIEW) */}
+          {/* AI CHECKLIST */}
           {caseData.aiSuggestedEvidence && caseData.aiSuggestedEvidence.length > 0 && (
             <div className="bg-blue-50 border border-blue-200 rounded-xl p-6 shadow-sm">
               <h4 className="text-sm font-semibold text-blue-900 mb-2 flex items-center gap-2">
@@ -221,7 +240,26 @@ export const CaseDetails: React.FC = () => {
               <div className="grid gap-4">
                 {caseData.documents.map((doc: any) => (
                   <div key={doc._id} className="flex flex-col p-4 border rounded-lg bg-slate-50 border-slate-200 shadow-sm">
-                    <p className="font-semibold text-slate-800 mb-2 truncate text-sm" title={doc.fileName}>{doc.fileName}</p>
+                    
+                    <div className="flex justify-between items-start mb-2 gap-2">
+                      <p className="font-semibold text-slate-800 truncate text-sm" title={doc.fileName}>
+                        {doc.fileName}
+                      </p>
+                      
+                      {/* --- THIS IS THE SECOND FIX: Replaced <a> tag with <button> --- */}
+                      {doc.fileUrl && (
+                        <button 
+                          onClick={() => handleViewDocument(doc.fileUrl)}
+                          type="button"
+                          className="flex items-center gap-1 px-2 py-1 bg-blue-100 text-blue-700 hover:bg-blue-200 rounded text-[10px] font-bold uppercase transition shrink-0 cursor-pointer"
+                          title="View Document"
+                        >
+                          <ExternalLink size={12} /> View
+                        </button>
+                      )}
+                      {/* ------------------------------------------------------------- */}
+                    </div>
+
                     <div className="flex items-center gap-2 mb-3">
                       <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold uppercase border ${
                         doc.verificationStatus === 'verified' ? 'bg-green-100 text-green-700 border-green-200' : 
@@ -231,6 +269,7 @@ export const CaseDetails: React.FC = () => {
                       </span>
                     </div>
 
+                    {/* ONLY LAWYERS & POLICE SEE THESE BUTTONS */}
                     {(user?.role === 'police' || user?.role === 'lawyer') && doc.verificationStatus === 'pending' && (
                       <div className="flex gap-2">
                         <button 
