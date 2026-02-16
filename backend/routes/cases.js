@@ -290,4 +290,76 @@ router.put('/:id/submit-to-court', verifyToken, checkRole(['lawyer']), async (re
   }
 });
 
+// --- POLICE INVESTIGATION ROUTES ---
+
+// 8. Add Investigation Note (Case Diary)
+router.post('/:id/investigation-notes', verifyToken, checkRole(['police']), async (req, res) => {
+  try {
+    const { note } = req.body;
+    const caseItem = await Case.findById(req.params.id);
+    
+    if (!caseItem) return res.status(404).json({ message: 'Case not found' });
+    
+    // Security check: Ensure this officer is assigned to this case
+    if (caseItem.assignedPolice?.toString() !== req.user.userId) {
+       return res.status(403).json({ message: 'Not authorized for this investigation' });
+    }
+
+    caseItem.investigationNotes.push({
+      note,
+      addedBy: req.user.userId,
+      addedAt: new Date()
+    });
+
+    await caseItem.save();
+    res.json(caseItem);
+  } catch (error) {
+    res.status(500).json({ message: 'Error adding note', error: error.message });
+  }
+});
+
+// 9. Upload Evidence (Digital Locker)
+router.post('/:id/evidence', verifyToken, checkRole(['police']), async (req, res) => {
+  try {
+    const { fileName, fileUrl } = req.body; // In a real app, this would handle file upload
+    const caseItem = await Case.findById(req.params.id);
+    
+    if (!caseItem) return res.status(404).json({ message: 'Case not found' });
+
+    caseItem.documents.push({
+      fileName,
+      fileUrl,
+      uploadedAt: new Date()
+    });
+
+    await caseItem.save();
+    res.json(caseItem);
+  } catch (error) {
+    res.status(500).json({ message: 'Error adding evidence', error: error.message });
+  }
+});
+
+// 10. File Charge Sheet (Submit to Court)
+router.put('/:id/charge-sheet', verifyToken, checkRole(['police']), async (req, res) => {
+  try {
+    const caseItem = await Case.findById(req.params.id);
+    if (!caseItem) return res.status(404).json({ message: 'Case not found' });
+
+    // Change status to 'in-court' (Trial Ready)
+    caseItem.status = 'in-court';
+
+    caseItem.timeline.push({
+      date: new Date(),
+      status: 'in-court',
+      updatedBy: req.user.userId,
+      notes: 'Police filed Charge Sheet. Case moved to Trial.'
+    });
+
+    await caseItem.save();
+    res.json({ message: 'Charge Sheet filed successfully', case: caseItem });
+  } catch (error) {
+    res.status(500).json({ message: 'Error filing charge sheet', error: error.message });
+  }
+});
+
 export default router;
