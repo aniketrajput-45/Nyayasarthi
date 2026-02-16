@@ -3,8 +3,9 @@ import { useAuth } from '../../hooks/useAuth';
 import { useNavigate } from 'react-router-dom';
 import { 
   Briefcase, Gavel, Clock, TrendingUp, Calendar, 
-  Bell, Plus, X, CheckCircle
+  Plus, X, CheckCircle, ArrowRight
 } from 'lucide-react';
+import { Notifications } from '../Notifications'; // <--- IMPORT THE BELL
 
 interface Case {
   _id: string;
@@ -13,7 +14,7 @@ interface Case {
   category: string;
   location: string;
   isProBono: boolean;
-  assignedLawyer?: any; // Changed to any to handle populated object
+  assignedLawyer?: any; 
   createdAt: string;
   status: string;
   hearings?: any[];
@@ -56,7 +57,6 @@ export const LawyerDashboard: React.FC = () => {
           const allCases: Case[] = await res.json();
           const myId = user?.userId || user?._id;
 
-          // FIX: Safely compare the populated lawyer object ID with your user ID
           const myCases = allCases.filter(c => {
             const lawyerId = getID(c.assignedLawyer);
             return lawyerId === myId && c.status !== 'resolved';
@@ -121,6 +121,7 @@ export const LawyerDashboard: React.FC = () => {
 
   return (
     <div className="p-6 bg-slate-50 min-h-screen relative">
+      
       {/* HEADER SECTION */}
       <header className="flex justify-between items-center mb-8">
         <div>
@@ -131,11 +132,14 @@ export const LawyerDashboard: React.FC = () => {
             {new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
           </p>
         </div>
-        <div className="flex gap-4">
-          <button className="p-2 bg-white border border-slate-200 rounded-full text-slate-600 hover:bg-slate-50 relative">
-            <Bell size={20} />
-            <span className="absolute top-0 right-0 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-white"></span>
-          </button>
+        
+        <div className="flex gap-4 items-center">
+          {/* --- REPLACED STATIC BELL WITH REAL NOTIFICATIONS --- */}
+          <div className="bg-white p-2 rounded-full shadow-sm border border-slate-200 z-50">
+             <Notifications /> 
+          </div>
+          {/* --------------------------------------------------- */}
+
           <div className="w-10 h-10 bg-slate-200 rounded-full flex items-center justify-center text-slate-600 font-bold border-2 border-white shadow-sm">
             {user?.fullName?.charAt(0)}
           </div>
@@ -254,34 +258,33 @@ export const LawyerDashboard: React.FC = () => {
                       
                       {/* ACTION BUTTONS */}
                       <div className="flex flex-col gap-2">
-                         <button 
-                           onClick={() => navigate(`/case/${c._id}`)}
-                           className="bg-slate-50 text-slate-600 px-4 py-2 rounded-lg text-sm font-medium hover:bg-slate-100 transition-colors"
-                         >
-                           View Details
-                         </button>
-                         
-                         {/* --- THE GATEKEEPER BUTTON --- */}
-                         {c.status === 'pending_lawyer' && (
-                            <button
-                              onClick={async (e) => {
-                                e.stopPropagation();
-                                if(confirm("Confirm: Submit this case to the Judge?\n\nThis will officially start the legal timer (BNSS).")) {
-                                   const res = await fetch(`${import.meta.env.VITE_API_URL}/cases/${c._id}/submit-to-court`, {
-                                     method: 'PUT',
-                                     headers: { Authorization: `Bearer ${token}` }
-                                   });
-                                   if(res.ok) {
-                                     alert("Case forwarded to Judge successfully!");
-                                     window.location.reload();
-                                   }
-                                }
-                              }}
-                              className="bg-indigo-600 hover:bg-indigo-700 text-white text-sm px-4 py-2 rounded-lg font-medium shadow-sm flex items-center justify-center gap-2 animate-pulse"
-                            >
-                              <Gavel size={14} /> Submit to Court
-                            </button>
-                         )}
+                          <button 
+                            onClick={() => navigate(`/case/${c._id}`)}
+                            className="bg-slate-50 text-slate-600 px-4 py-2 rounded-lg text-sm font-medium hover:bg-slate-100 transition-colors"
+                          >
+                            View Details
+                          </button>
+                          
+                          {c.status === 'pending_lawyer' && (
+                             <button
+                               onClick={async (e) => {
+                                 e.stopPropagation();
+                                 if(confirm("Confirm: Submit this case to the Judge?\n\nThis will officially start the legal timer (BNSS).")) {
+                                    const res = await fetch(`${import.meta.env.VITE_API_URL}/cases/${c._id}/submit-to-court`, {
+                                      method: 'PUT',
+                                      headers: { Authorization: `Bearer ${token}` }
+                                    });
+                                    if(res.ok) {
+                                      alert("Case forwarded to Judge successfully!");
+                                      window.location.reload();
+                                    }
+                                 }
+                               }}
+                               className="bg-indigo-600 hover:bg-indigo-700 text-white text-sm px-4 py-2 rounded-lg font-medium shadow-sm flex items-center justify-center gap-2 animate-pulse"
+                             >
+                               <Gavel size={14} /> Submit to Court
+                             </button>
+                          )}
                       </div>
                     </div>
                   </div>

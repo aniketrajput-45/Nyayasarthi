@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useAuth } from '../../hooks/useAuth';
 import { 
   Gavel, AlertCircle, CheckCircle, Clock, 
-  ArrowRight, Shield, Briefcase, Search, UserCheck 
+  ArrowRight, Shield, Briefcase, FileText 
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { AssignModal } from '../AssignModal'; 
@@ -33,7 +33,7 @@ export const JudgeDashboard: React.FC = () => {
   
   // Data Buckets
   const [unassignedCases, setUnassignedCases] = useState<Case[]>([]); // Need Police
-  const [assignedCases, setAssignedCases] = useState<Case[]>([]);     // Already Assigned (My Docket)
+  const [assignedCases, setAssignedCases] = useState<Case[]>([]);     // Already Assigned
   
   const [loading, setLoading] = useState(true);
 
@@ -182,9 +182,17 @@ export const JudgeDashboard: React.FC = () => {
                        <span className="text-xs text-orange-600 font-bold bg-orange-50 px-2 py-1 rounded">Needs Police</span>
                     </td>
                     <td className="px-6 py-4 text-right">
+                      {/* --- NEW BUTTON: VIEW DETAILS --- */}
+                      <button 
+                        onClick={() => navigate(`/case/${c._id}`)}
+                        className="text-slate-500 hover:text-blue-600 font-medium text-sm mr-4 transition-colors"
+                      >
+                         View Details
+                      </button>
+                      
                       <button 
                         onClick={() => { setSelectedCase(c); setAssignModalOpen(true); }}
-                        className="bg-slate-900 text-white text-sm px-4 py-2 rounded-lg hover:bg-slate-800 transition shadow-sm flex items-center gap-2 ml-auto"
+                        className="bg-slate-900 text-white text-sm px-4 py-2 rounded-lg hover:bg-slate-800 transition shadow-sm inline-flex items-center gap-2"
                       >
                         <Shield size={14} /> Assign Police
                       </button>
@@ -197,7 +205,7 @@ export const JudgeDashboard: React.FC = () => {
         )}
       </div>
 
-      {/* SECTION 2: MY DOCKET (ASSIGNED / ONGOING) */}
+      {/* SECTION 2: MY ACTIVE DOCKET (ASSIGNED / ONGOING) */}
       <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
         <div className="px-6 py-4 border-b border-slate-100 bg-blue-50 flex justify-between items-center">
           <div>

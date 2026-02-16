@@ -2,6 +2,7 @@ import express from 'express';
 import Case from '../models/Case.js';
 import User from '../models/User.js';
 import { verifyToken, checkRole } from '../middleware/auth.js';
+import Notification from '../models/Notification.js';
 
 const router = express.Router();
 
@@ -105,7 +106,11 @@ router.get('/', verifyToken, async (req, res) => {
     if (req.user.role === 'citizen') {
       query.filedBy = req.user.userId;
     } else if (req.user.role === 'police') {
-      query.assignedPolice = req.user.userId;
+      // OLD CODE: query.assignedPolice = req.user.userId; 
+      
+      // NEW CODE: Show ALL active cases so the dashboard isn't empty
+      // We will filter "My Cases" vs "Station Cases" on the frontend
+      query.status = { $in: ['filed', 'under-investigation', 'in-court', 'resolved'] };
     } else if (req.user.role === 'lawyer') {
       query.$or = [
         { assignedLawyer: req.user.userId },
@@ -163,11 +168,38 @@ router.get('/:id', verifyToken, async (req, res) => {
 router.put('/:id/assign', verifyToken, checkRole(['judge']), async (req, res) => {
   try {
     const { assignedPolice, assignedLawyer } = req.body;
+    
+    // Fetch case WITHOUT populating first to check IDs easily
     const caseItem = await Case.findById(req.params.id);
     if (!caseItem) return res.status(404).json({ message: 'Case not found' });
 
     if (assignedPolice) caseItem.assignedPolice = assignedPolice;
     if (assignedLawyer) caseItem.assignedLawyer = assignedLawyer;
+    
+    // Auto-assign Judge
+    if (!caseItem.assignedJudge) caseItem.assignedJudge = req.user.userId; 
+
+    // --- NOTIFICATION 1: Notify the Police Officer ---
+    if (assignedPolice) {
+      await new Notification({
+        recipient: assignedPolice,
+        message: `🚨 NEW ASSIGNMENT: Case #${caseItem.caseNumber} assigned to you.`,
+        type: 'alert',
+        caseId: caseItem._id
+      }).save();
+    }
+
+
+    // --- NOTIFICATION 2: Notify the Lawyer (if one exists) ---
+    // We notify them that their case has moved to investigation
+    if (caseItem.assignedLawyer && assignedPolice) {
+      await new Notification({
+        recipient: caseItem.assignedLawyer,
+        message: `Case Update: An Investigating Officer has been assigned to Case #${caseItem.caseNumber}. The investigation has begun.`,
+        type: 'info',
+        caseId: caseItem._id
+      }).save();
+    }
 
     // Make sure the judge doing the assignment is recorded on the case
     caseItem.assignedJudge = req.user.userId;
@@ -181,20 +213,15 @@ router.put('/:id/assign', verifyToken, checkRole(['judge']), async (req, res) =>
     
     if (caseItem.status === 'filed') caseItem.status = 'under-investigation';
 
-    caseItem.timeline.push({
-      date: new Date(),
-      status: 'under-investigation',
-      updatedBy: req.user.userId,
-      notes: 'Judge assigned professionals'
-    });
+    if (caseItem.status === 'filed') caseItem.status = 'under-investigation';
 
     await caseItem.save();
     res.json({ message: 'Assigned successfully', case: caseItem });
+    
   } catch (error) {
     res.status(500).json({ message: 'Error assigning case', error: error.message });
   }
 });
-
 // 5. Claim Case (Lawyer) -> FIXED TO RESOLVE 500 ERROR
 router.put('/:caseId/claim-lawyer', verifyToken, checkRole(['lawyer']), async (req, res) => {
   try {

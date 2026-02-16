@@ -1,9 +1,14 @@
 import express from 'express';
-import cors from 'cors';
+import cors from 'cors'; // Import CORS first
 import dotenv from 'dotenv';
 import { createServer } from 'http';
 import { Server } from 'socket.io';
 import mongoose from 'mongoose';
+import cron from 'node-cron';
+
+// Import models
+import Case from './models/Case.js';
+import Notification from './models/Notification.js';
 
 // Import routes
 import authRoutes from './routes/auth.js';
@@ -12,53 +17,71 @@ import chatRoutes from './routes/chat.js';
 import chatbotRoutes from './routes/chatbot.js';
 import analyticsRoutes from './routes/analytics.js';
 import userRoutes from './routes/users.js';
+import notificationRoutes from './routes/notifications.js';
 
 dotenv.config();
 
 const app = express();
 const httpServer = createServer(app);
-const io = new Server(httpServer, {
-  cors: {
-    origin: process.env.FRONTEND_URL || 'http://localhost:5173',
-    methods: ['GET', 'POST'],
-  },
-});
 
+
+// --- 1. MIDDLEWARE (MUST BE AT THE TOP) ---
+
+// Allow Frontend URLs
 // Middleware
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
+
 const allowedOrigins = [
   process.env.FRONTEND_URL,
   'http://localhost:5173',
   'http://127.0.0.1:5173',
-  'http://localhost:3000',
-  'http://127.0.0.1:3000',
-].filter(Boolean);
+  'http://localhost:3000'
+];
+
 app.use(cors({
-  origin: (origin, cb) => {
-    if (!origin || allowedOrigins.includes(origin)) return cb(null, true);
-    cb(null, true); // allow in dev for any localhost
+  origin: function (origin, callback) {
+    // Allow requests with no origin (like mobile apps or curl requests)
+    if (!origin) return callback(null, true);
+    if (allowedOrigins.indexOf(origin) === -1) {
+      return callback(null, true); // Dev mode: allow all. Change to false in prod.
+    }
+    return callback(null, true);
   },
   credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization']
 }));
 
-// Connect to MongoDB
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ limit: '50mb', extended: true }));
+
+// --- 2. SOCKET.IO SETUP ---
+const io = new Server(httpServer, {
+  cors: {
+    origin: process.env.FRONTEND_URL || 'http://localhost:5173',
+    methods: ['GET', 'POST'],
+    credentials: true
+  },
+});
+
+// --- 3. DATABASE CONNECTION ---
 mongoose.connect(process.env.MONGODB_URI)
   .then(() => console.log('MongoDB connected'))
   .catch(err => console.log('MongoDB connection error:', err));
 
-// Health check (so frontend can verify backend is reachable)
+// --- 4. ROUTES (MUST BE AFTER MIDDLEWARE) ---
 app.get('/api/health', (req, res) => res.json({ ok: true }));
 
-// Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/cases', caseRoutes);
 app.use('/api/chat', chatRoutes);
 app.use('/api/chatbot', chatbotRoutes);
 app.use('/api/analytics', analyticsRoutes);
 app.use('/api/users', userRoutes);
+app.use('/api/notifications', notificationRoutes); // <--- MOVED HERE (Correct Spot)
 
-// Socket.io events
+// --- 5. SOCKET EVENTS ---
 io.on('connection', (socket) => {
   console.log('User connected:', socket.id);
 
@@ -81,6 +104,38 @@ io.on('connection', (socket) => {
   socket.on('disconnect', () => {
     console.log('User disconnected:', socket.id);
   });
+});
+
+// --- 6. CRON JOBS ---
+cron.schedule('0 0 * * *', async () => {
+  console.log('Running Deadline Check...');
+  
+  const today = new Date();
+  const threeDaysFromNow = new Date();
+  threeDaysFromNow.setDate(today.getDate() + 3);
+
+  try {
+    const criticalCases = await Case.find({
+      status: { $ne: 'resolved' },
+      deadlineDate: { $lte: threeDaysFromNow, $gte: today }
+    });
+
+    for (const c of criticalCases) {
+      const daysLeft = Math.ceil((new Date(c.deadlineDate) - today) / (1000 * 60 * 60 * 24));
+      const message = `URGENT: Case #${c.caseNumber} deadline is approaching! Only ${daysLeft} days remaining.`;
+
+      if (c.assignedLawyer) {
+        await new Notification({ recipient: c.assignedLawyer, message, type: 'warning', caseId: c._id }).save();
+      }
+
+      if (c.assignedPolice) {
+        await new Notification({ recipient: c.assignedPolice, message, type: 'warning', caseId: c._id }).save();
+      }
+    }
+    console.log(`Sent deadline alerts for ${criticalCases.length} cases.`);
+  } catch (err) {
+    console.error('Error in cron job:', err);
+  }
 });
 
 const PORT = process.env.PORT || 5000;
