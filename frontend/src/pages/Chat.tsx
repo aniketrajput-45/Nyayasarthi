@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { useAuth } from '../hooks/useAuth';
-import { AlertCircle, Calendar, CheckCircle, Gavel, HelpCircle, RefreshCw, Shield, Ticket, User, X, Send } from 'lucide-react';
+import { AlertCircle, Calendar, CheckCircle, Clock, Gavel, HelpCircle, RefreshCw, Shield, Ticket, User, X, Send } from 'lucide-react';
 
 const getApiUrl = () => import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
@@ -53,6 +53,7 @@ export const Chat: React.FC = () => {
   const [chatSending, setChatSending] = useState(false);
   const [chatInput, setChatInput] = useState('');
   const [chatError, setChatError] = useState('');
+  const [now, setNow] = useState(() => Date.now());
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const dateInputRef = useRef<HTMLInputElement>(null);
 
@@ -80,14 +81,15 @@ export const Chat: React.FC = () => {
     fetch(`${getApiUrl()}/chat/case/${selectedCase._id}/thread/${selectedCase.chatWithUserId}/messages`, {
       headers: { Authorization: `Bearer ${token}` },
     })
-      .then((r) => {
-        if (!r.ok) throw new Error('Failed to load chat');
-        return r.json();
+      .then(async (r) => {
+        const data = await r.json().catch(() => ({}));
+        if (!r.ok) throw new Error(data.message || 'Failed to load messages');
+        return data;
       })
       .then(setChatMessages)
-      .catch(() => {
+      .catch((err) => {
         setChatMessages([]);
-        setChatError('Failed to load messages');
+        setChatError(err instanceof Error ? err.message : 'Failed to load messages');
       })
       .finally(() => setChatLoading(false));
   }, [token, selectedCase?._id, selectedCase?.chatWithUserId]);
@@ -95,6 +97,13 @@ export const Chat: React.FC = () => {
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [chatMessages]);
+
+  useEffect(() => {
+    const id = window.setInterval(() => {
+      setNow(Date.now());
+    }, 1000);
+    return () => window.clearInterval(id);
+  }, []);
 
   const fetchMessages = () => {
     if (!token || !selectedCase?.chatWithUserId) return;
@@ -146,6 +155,9 @@ export const Chat: React.FC = () => {
         return matchNumber && matchDate;
       });
 
+  // Normalise current user id (AuthContext stores _id, JWT uses userId)
+  const currentUserId = (user as any)?.userId || user?._id || null;
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setAppliedFilter({ caseNumber: helpLookup.caseNumber, date: helpLookup.date });
@@ -154,6 +166,22 @@ export const Chat: React.FC = () => {
   const handleRefresh = () => {
     setAppliedFilter(null);
     setHelpLookup({ caseNumber: '', date: '' });
+  };
+
+  const formatPendingDuration = (createdAt: string) => {
+    const createdTime = new Date(createdAt).getTime();
+    if (!Number.isFinite(createdTime)) return '';
+    const diffMs = Math.max(0, now - createdTime);
+    const totalSeconds = Math.floor(diffMs / 1000);
+    const hours = Math.floor(totalSeconds / 3600);
+    const minutes = Math.floor((totalSeconds % 3600) / 60);
+    const seconds = totalSeconds % 60;
+
+    if (hours > 0) {
+      return `${hours}h ${minutes.toString().padStart(2, '0')}m`;
+    }
+
+    return `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
   };
 
   const getStatusColor = (status: string) => {
@@ -327,8 +355,9 @@ export const Chat: React.FC = () => {
                               Accepted
                             </span>
                           ) : (
-                            <span className="inline-flex px-2.5 py-1 rounded-lg text-xs font-medium bg-slate-500/10 text-slate-700 border border-slate-300">
-                              Pending
+                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium bg-red-500/10 text-red-700 border border-red-500/30">
+                              <Clock className="w-4 h-4" />
+                              <span>Pending</span>
                             </span>
                           )
                         ) : user?.role === 'lawyer' ? (
@@ -470,17 +499,19 @@ export const Chat: React.FC = () => {
                                 </button>
                               </>
                             )}
-                            {user?.role === 'judge' && getCaseUserId(c.assignedLawyer) && (
+                            {user?.role === 'judge' && (
                               <button
                                 type="button"
-                                onClick={() => setSelectedCase({
+                                onClick={() => getCaseUserId(c.assignedLawyer) && setSelectedCase({
                                   _id: c._id,
                                   caseNumber: c.caseNumber,
                                   title: c.title,
                                   chatWithUserId: getCaseUserId(c.assignedLawyer)!,
                                   chatWithLabel: 'Lawyer',
                                 })}
-                                className="inline-flex items-center gap-1.5 text-sm font-medium text-cyan-600 hover:text-cyan-700"
+                                disabled={!getCaseUserId(c.assignedLawyer)}
+                                className="inline-flex items-center gap-1.5 text-sm font-medium text-cyan-600 hover:text-cyan-700 disabled:opacity-50 disabled:cursor-not-allowed disabled:text-slate-400"
+                                title={getCaseUserId(c.assignedLawyer) ? 'Chat with Lawyer' : 'Lawyer not assigned yet'}
                               >
                                 <Gavel className="w-4 h-4" />
                                 Lawyer
