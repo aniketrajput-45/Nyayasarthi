@@ -2,6 +2,7 @@ import express from 'express';
 import Case from '../models/Case.js';
 import User from '../models/User.js';
 import { verifyToken, checkRole } from '../middleware/auth.js';
+import Notification from '../models/Notification.js';
 
 const router = express.Router();
 
@@ -105,7 +106,11 @@ router.get('/', verifyToken, async (req, res) => {
     if (req.user.role === 'citizen') {
       query.filedBy = req.user.userId;
     } else if (req.user.role === 'police') {
-      query.assignedPolice = req.user.userId;
+      // OLD CODE: query.assignedPolice = req.user.userId; 
+      
+      // NEW CODE: Show ALL active cases so the dashboard isn't empty
+      // We will filter "My Cases" vs "Station Cases" on the frontend
+      query.status = { $in: ['filed', 'under-investigation', 'in-court', 'resolved'] };
     } else if (req.user.role === 'lawyer') {
       query.$or = [
         { assignedLawyer: req.user.userId },
@@ -159,33 +164,49 @@ router.get('/:id', verifyToken, async (req, res) => {
   }
 });
 
-// 4. Assign Professionals (Judge Only)
+// 4. Assign Professionals
 router.put('/:id/assign', verifyToken, checkRole(['judge']), async (req, res) => {
   try {
     const { assignedPolice, assignedLawyer } = req.body;
+    
+    console.log("--- ASSIGNMENT DEBUG START ---");
+    console.log("Case ID:", req.params.id);
+    console.log("Assigning Police ID:", assignedPolice);
+
     const caseItem = await Case.findById(req.params.id);
     if (!caseItem) return res.status(404).json({ message: 'Case not found' });
 
     if (assignedPolice) caseItem.assignedPolice = assignedPolice;
     if (assignedLawyer) caseItem.assignedLawyer = assignedLawyer;
-
-    // --- THE FIX: Auto-assign the Judge who is doing this action ---
-    if (!caseItem.assignedJudge) {
-       caseItem.assignedJudge = req.user.userId; 
-    }
     
+    // Auto-assign Judge
+    if (!caseItem.assignedJudge) caseItem.assignedJudge = req.user.userId; 
+
+    // --- NOTIFICATION DEBUG ---
+    if (assignedPolice) {
+      console.log("Attempting to create notification for:", assignedPolice);
+      
+      const notif = await new Notification({
+        recipient: assignedPolice,
+        message: `🚨 NEW ASSIGNMENT: Case #${caseItem.caseNumber} assigned to you.`,
+        type: 'alert',
+        caseId: caseItem._id
+      }).save();
+
+      console.log("Notification Saved Successfully:", notif._id);
+    } else {
+      console.log("No Police ID provided, skipping notification.");
+    }
+    // -------------------------
+
     if (caseItem.status === 'filed') caseItem.status = 'under-investigation';
-
-    caseItem.timeline.push({
-      date: new Date(),
-      status: 'under-investigation',
-      updatedBy: req.user.userId,
-      notes: 'Judge assigned professionals'
-    });
-
     await caseItem.save();
+
+    console.log("--- ASSIGNMENT DEBUG END ---");
     res.json({ message: 'Assigned successfully', case: caseItem });
+    
   } catch (error) {
+    console.error("ASSIGNMENT ERROR:", error);
     res.status(500).json({ message: 'Error assigning case', error: error.message });
   }
 });
