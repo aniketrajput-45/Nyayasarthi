@@ -164,15 +164,12 @@ router.get('/:id', verifyToken, async (req, res) => {
   }
 });
 
-// 4. Assign Professionals
+// 4. Assign Professionals (Judge Only)
 router.put('/:id/assign', verifyToken, checkRole(['judge']), async (req, res) => {
   try {
     const { assignedPolice, assignedLawyer } = req.body;
     
-    console.log("--- ASSIGNMENT DEBUG START ---");
-    console.log("Case ID:", req.params.id);
-    console.log("Assigning Police ID:", assignedPolice);
-
+    // Fetch case WITHOUT populating first to check IDs easily
     const caseItem = await Case.findById(req.params.id);
     if (!caseItem) return res.status(404).json({ message: 'Case not found' });
 
@@ -182,35 +179,36 @@ router.put('/:id/assign', verifyToken, checkRole(['judge']), async (req, res) =>
     // Auto-assign Judge
     if (!caseItem.assignedJudge) caseItem.assignedJudge = req.user.userId; 
 
-    // --- NOTIFICATION DEBUG ---
+    // --- NOTIFICATION 1: Notify the Police Officer ---
     if (assignedPolice) {
-      console.log("Attempting to create notification for:", assignedPolice);
-      
-      const notif = await new Notification({
+      await new Notification({
         recipient: assignedPolice,
         message: `🚨 NEW ASSIGNMENT: Case #${caseItem.caseNumber} assigned to you.`,
         type: 'alert',
         caseId: caseItem._id
       }).save();
-
-      console.log("Notification Saved Successfully:", notif._id);
-    } else {
-      console.log("No Police ID provided, skipping notification.");
     }
-    // -------------------------
+
+    // --- NOTIFICATION 2: Notify the Lawyer (if one exists) ---
+    // We notify them that their case has moved to investigation
+    if (caseItem.assignedLawyer && assignedPolice) {
+      await new Notification({
+        recipient: caseItem.assignedLawyer,
+        message: `Case Update: An Investigating Officer has been assigned to Case #${caseItem.caseNumber}. The investigation has begun.`,
+        type: 'info',
+        caseId: caseItem._id
+      }).save();
+    }
 
     if (caseItem.status === 'filed') caseItem.status = 'under-investigation';
-    await caseItem.save();
 
-    console.log("--- ASSIGNMENT DEBUG END ---");
+    await caseItem.save();
     res.json({ message: 'Assigned successfully', case: caseItem });
     
   } catch (error) {
-    console.error("ASSIGNMENT ERROR:", error);
     res.status(500).json({ message: 'Error assigning case', error: error.message });
   }
 });
-
 // 5. Claim Case (Lawyer) -> FIXED TO RESOLVE 500 ERROR
 router.put('/:caseId/claim-lawyer', verifyToken, checkRole(['lawyer']), async (req, res) => {
   try {
