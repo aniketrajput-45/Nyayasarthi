@@ -89,16 +89,6 @@ export const Login: React.FC = () => {
             </p>
           </div>
         </div>
-
-        <div className="mt-8 bg-white bg-opacity-10 backdrop-blur-md rounded-xl p-6 text-white text-sm">
-          <p className="font-semibold mb-3">Demo Credentials:</p>
-          <div className="space-y-2 text-opacity-90">
-            <p>Citizen: citizen@example.com / password123</p>
-            <p>Police: police@example.com / password123</p>
-            <p>Lawyer: lawyer@example.com / password123</p>
-            <p>Judge: judge@example.com / password123</p>
-          </div>
-        </div>
       </div>
     </div>
   );
