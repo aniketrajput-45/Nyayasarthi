@@ -1,72 +1,73 @@
 import React, { useEffect, useState } from 'react';
+import { X, Shield, UserCheck } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
-import { X, Shield, Briefcase } from 'lucide-react';
 
 interface User {
   _id: string;
   fullName: string;
   email: string;
+  role: string;
 }
 
 interface AssignModalProps {
   isOpen: boolean;
   onClose: () => void;
+  onAssign: () => void;
   caseId: string;
-  onSuccess: () => void;
+  currentLawyer?: string; // Optional: To show who the lawyer is
 }
 
-export const AssignModal: React.FC<AssignModalProps> = ({ isOpen, onClose, caseId, onSuccess }) => {
+export const AssignModal: React.FC<AssignModalProps> = ({ isOpen, onClose, onAssign, caseId, currentLawyer }) => {
   const { token } = useAuth();
   const [police, setPolice] = useState<User[]>([]);
-  const [lawyers, setLawyers] = useState<User[]>([]);
   const [selectedPolice, setSelectedPolice] = useState('');
-  const [selectedLawyer, setSelectedLawyer] = useState('');
   const [loading, setLoading] = useState(false);
 
+  // 1. Fetch ONLY Police Officers (Lawyer is already assigned)
   useEffect(() => {
     if (isOpen) {
-      // Fetch available Police
-      fetch(`${import.meta.env.VITE_API_URL}/users?role=police`, {
-        headers: { Authorization: `Bearer ${token}` }
-      })
-      .then(res => res.json())
-      .then(data => setPolice(data))
-      .catch(err => console.error(err));
-
-      // Fetch available Lawyers
-      fetch(`${import.meta.env.VITE_API_URL}/users?role=lawyer`, {
-        headers: { Authorization: `Bearer ${token}` }
-      })
-      .then(res => res.json())
-      .then(data => setLawyers(data))
-      .catch(err => console.error(err));
+      const fetchProfessionals = async () => {
+        try {
+          // Fetch Police
+          const resPolice = await fetch(`${import.meta.env.VITE_API_URL}/users?role=police`, {
+            headers: { Authorization: `Bearer ${token}` }
+          });
+          if (resPolice.ok) setPolice(await resPolice.json());
+          
+        } catch (error) {
+          console.error("Error fetching professionals:", error);
+        }
+      };
+      fetchProfessionals();
     }
   }, [isOpen, token]);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleAssign = async () => {
+    if (!selectedPolice) return alert("Please select a Police Officer");
+
     setLoading(true);
     try {
       const res = await fetch(`${import.meta.env.VITE_API_URL}/cases/${caseId}/assign`, {
         method: 'PUT',
-        headers: {
+        headers: { 
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`
+          Authorization: `Bearer ${token}` 
         },
         body: JSON.stringify({
           assignedPolice: selectedPolice,
-          assignedLawyer: selectedLawyer
+          // We do NOT send assignedLawyer here, keeping the existing one
         })
       });
 
       if (res.ok) {
-        onSuccess();
-        onClose();
+        onAssign(); // Refresh the dashboard
+        onClose();  // Close modal
       } else {
-        alert("Failed to assign.");
+        alert("Failed to assign police.");
       }
     } catch (error) {
       console.error(error);
+      alert("Error assigning police.");
     } finally {
       setLoading(false);
     }
@@ -75,53 +76,70 @@ export const AssignModal: React.FC<AssignModalProps> = ({ isOpen, onClose, caseI
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg p-6 w-96 relative shadow-xl animate-in fade-in zoom-in duration-200">
-        <button onClick={onClose} className="absolute top-4 right-4 text-gray-400 hover:text-gray-600">
-          <X size={20} />
-        </button>
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 backdrop-blur-sm">
+      <div className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden">
         
-        <h2 className="text-xl font-bold text-slate-800 mb-6">Assign Professionals</h2>
-        
-        <form onSubmit={handleSubmit} className="space-y-4">
+        {/* Header */}
+        <div className="bg-slate-50 p-6 border-b border-slate-100 flex justify-between items-center">
+          <h3 className="font-bold text-lg text-slate-800 flex items-center gap-2">
+            <Shield className="text-blue-600" size={20} /> Assign Investigation
+          </h3>
+          <button onClick={onClose} className="text-slate-400 hover:text-slate-600">
+            <X size={20} />
+          </button>
+        </div>
+
+        {/* Body */}
+        <div className="p-6 space-y-6">
+          
+          {/* Read-Only: Current Lawyer */}
+          {currentLawyer && (
+             <div className="bg-blue-50 p-3 rounded-lg border border-blue-100">
+               <span className="text-xs font-bold text-blue-600 uppercase tracking-wider">Assigned Lawyer</span>
+               <div className="text-sm font-semibold text-slate-700 mt-1">{currentLawyer}</div>
+             </div>
+          )}
+
+          {/* Select Police */}
           <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1 flex items-center gap-2">
-              <Shield size={16} className="text-blue-600" /> Assign Police
-            </label>
-            <select
-              className="w-full border border-slate-300 rounded-lg p-2.5 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+            <label className="block text-sm font-bold text-slate-700 mb-2">Select Investigating Officer</label>
+            <select 
+              className="w-full p-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white"
               value={selectedPolice}
-              onChange={e => setSelectedPolice(e.target.value)}
-              required
+              onChange={(e) => setSelectedPolice(e.target.value)}
             >
-              <option value="">Choose Officer...</option>
-              {police.map(p => <option key={p._id} value={p._id}>{p.fullName} ({p.email})</option>)}
+              <option value="">-- Choose Officer --</option>
+              {police.map(p => (
+                <option key={p._id} value={p._id}>
+                  {p.fullName} ({p.email})
+                </option>
+              ))}
             </select>
+            <p className="text-xs text-slate-500 mt-2">
+              This officer will receive the case details and begin the investigation.
+            </p>
           </div>
 
-          <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1 flex items-center gap-2">
-              <Briefcase size={16} className="text-orange-600" /> Assign Lawyer
-            </label>
-            <select
-              className="w-full border border-slate-300 rounded-lg p-2.5 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
-              value={selectedLawyer}
-              onChange={e => setSelectedLawyer(e.target.value)}
-              required
-            >
-              <option value="">Choose Lawyer...</option>
-              {lawyers.map(l => <option key={l._id} value={l._id}>{l.fullName} ({l.email})</option>)}
-            </select>
-          </div>
+        </div>
 
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full bg-blue-600 text-white font-medium py-2.5 rounded-lg hover:bg-blue-700 disabled:bg-blue-300 transition-colors mt-2"
+        {/* Footer */}
+        <div className="p-6 border-t border-slate-100 bg-slate-50 flex justify-end gap-3">
+          <button 
+            onClick={onClose}
+            className="px-4 py-2 text-slate-600 font-medium hover:bg-slate-200 rounded-lg transition-colors"
+          >
+            Cancel
+          </button>
+          <button 
+            onClick={handleAssign}
+            disabled={loading || !selectedPolice}
+            className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg shadow-lg shadow-blue-200 transition-all flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {loading ? 'Assigning...' : 'Confirm Assignment'}
+            <UserCheck size={18} />
           </button>
-        </form>
+        </div>
+
       </div>
     </div>
   );
