@@ -7,6 +7,7 @@ import { Login } from './pages/Login';
 import { Register } from './pages/Register';
 import { Dashboard } from './pages/Dashboard';
 import { FileCase } from './pages/FileCase';
+import { LegalNotice } from './pages/LegalNotice';
 import { Cases } from './pages/Cases';
 import { Chat } from './pages/Chat';
 import { Analytics } from './pages/Analytics';
@@ -30,6 +31,7 @@ function App() {
           >
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/file-case" element={<FileCase />} />
+            <Route path="/legal-notice" element={<LegalNotice />} />
             <Route path="/my-cases" element={<Cases />} />
             <Route path="/cases" element={<Cases />} />
             <Route path="/case/:id" element={<CaseDetails />} />
