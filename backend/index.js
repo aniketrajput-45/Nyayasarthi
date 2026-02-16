@@ -17,6 +17,7 @@ import chatRoutes from './routes/chat.js';
 import chatbotRoutes from './routes/chatbot.js';
 import analyticsRoutes from './routes/analytics.js';
 import userRoutes from './routes/users.js';
+import legalNoticeRoutes from './routes/legalNotice.js';
 import notificationRoutes from './routes/notifications.js';
 
 dotenv.config();
@@ -79,6 +80,7 @@ app.use('/api/chat', chatRoutes);
 app.use('/api/chatbot', chatbotRoutes);
 app.use('/api/analytics', analyticsRoutes);
 app.use('/api/users', userRoutes);
+app.use('/api/legal-notice', legalNoticeRoutes);
 app.use('/api/notifications', notificationRoutes); // <--- MOVED HERE (Correct Spot)
 
 // --- 5. SOCKET EVENTS ---
