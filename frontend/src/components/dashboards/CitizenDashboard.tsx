@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useAuth } from '../../hooks/useAuth';
 import { useNavigate } from 'react-router-dom';
+import { jsPDF } from 'jspdf';
 import { 
   FileText, Activity, CheckCircle, Clock, 
   AlertTriangle, EyeOff, ChevronRight, Shield, AlertCircle, Bell, X, Scale, Download
@@ -131,46 +132,52 @@ export const CitizenDashboard: React.FC = () => {
   };
 
   const handleDownloadNotice = (notice: LegalNotice) => {
-    const lines = [
-      'LEGAL NOTICE',
-      '════════════════════════════════════════',
-      `Notice Number: ${notice.noticeNumber}`,
-      notice.caseNumber ? `Case Number: ${notice.caseNumber}` : '',
-      `Notice Date: ${new Date(notice.noticeDate).toLocaleDateString()}`,
-      '',
-      'ISSUED BY',
-      '────────────────────────────────────────',
-      `${notice.issuerRole.charAt(0).toUpperCase() + notice.issuerRole.slice(1)}: ${notice.issuerName}`,
-      notice.issuedBy?.email ? `Email: ${notice.issuedBy.email}` : '',
-      '',
-      'DETAILS',
-      '────────────────────────────────────────',
-      `Notice Type: ${(notice.noticeType || '').replace(/_/g, ' ')}`,
-      `Urgency: ${(notice.urgency || '').toUpperCase()}`,
-      `Subject: ${notice.subject || ''}`,
-      `Incident Title: ${notice.incidentTitle || ''}`,
-      `Case Type: ${(notice.caseType || '').toUpperCase()}`,
-      `Location: ${notice.location || ''}`,
-      `Date of Incident: ${notice.dateOfIncident ? new Date(notice.dateOfIncident).toLocaleDateString() : ''}`,
-      '',
-      'SUBJECT',
-      '────────────────────────────────────────',
-      notice.subject || '',
-      '',
-      'DESCRIPTION',
-      '────────────────────────────────────────',
-      notice.description || '',
-      '',
-      '════════════════════════════════════════',
-      `Generated from Citizen Dashboard on ${new Date().toLocaleString()}`
-    ].filter(Boolean);
-    const blob = new Blob([lines.join('\n')], { type: 'text/plain;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `Legal-Notice-${notice.noticeNumber.replace(/\s/g, '-')}.txt`;
-    a.click();
-    URL.revokeObjectURL(url);
+    const doc = new jsPDF();
+    const margin = 20;
+    const pageW = doc.internal.pageSize.getWidth();
+    let y = margin;
+
+    const addSection = (title: string, content: string, isBold = false) => {
+      if (y > 270) { doc.addPage(); y = margin; }
+      doc.setFontSize(10);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(80, 80, 80);
+      doc.text(title, margin, y);
+      y += 6;
+      doc.setFont('helvetica', isBold ? 'bold' : 'normal');
+      doc.setFontSize(10);
+      doc.setTextColor(0, 0, 0);
+      const lines = doc.splitTextToSize(content || '—', pageW - 2 * margin);
+      doc.text(lines, margin, y);
+      y += lines.length * 5 + 4;
+    };
+
+    doc.setFontSize(18);
+    doc.setFont('helvetica', 'bold');
+    doc.text('LEGAL NOTICE', margin, y);
+    y += 10;
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'normal');
+    doc.text(`Notice #${notice.noticeNumber}`, margin, y);
+    if (notice.caseNumber) doc.text(`Case: ${notice.caseNumber}`, margin + 60, y);
+    y += 10;
+
+    addSection('Issued By', `${notice.issuerRole.charAt(0).toUpperCase() + notice.issuerRole.slice(1)}: ${notice.issuerName}${notice.issuedBy?.email ? ` (${notice.issuedBy.email})` : ''}`);
+    addSection('Notice Type', (notice.noticeType || '').replace(/_/g, ' '));
+    addSection('Urgency', (notice.urgency || '').toUpperCase());
+    addSection('Notice Date', new Date(notice.noticeDate).toLocaleDateString());
+    addSection('Subject', notice.subject || '');
+    addSection('Incident Title', notice.incidentTitle || '');
+    addSection('Case Type', (notice.caseType || '').toUpperCase());
+    addSection('Location', notice.location || '');
+    addSection('Date of Incident', notice.dateOfIncident ? new Date(notice.dateOfIncident).toLocaleDateString() : '');
+    addSection('Description', notice.description || '');
+
+    doc.setFontSize(8);
+    doc.setTextColor(120, 120, 120);
+    doc.text(`Generated from Citizen Dashboard on ${new Date().toLocaleString()}`, margin, doc.internal.pageSize.getHeight() - 10);
+
+    doc.save(`Legal-Notice-${notice.noticeNumber.replace(/\s/g, '-')}.pdf`);
   };
 
   if (loading) return <div className="p-8 text-center">Loading your dashboard...</div>;
