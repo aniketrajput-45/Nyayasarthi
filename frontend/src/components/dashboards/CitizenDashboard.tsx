@@ -1,10 +1,16 @@
 import React, { useEffect, useState } from 'react';
 import { useAuth } from '../../hooks/useAuth';
 import { useNavigate } from 'react-router-dom';
+import { jsPDF } from 'jspdf';
 import { 
   FileText, Activity, CheckCircle, Clock, 
-  AlertTriangle, EyeOff, ChevronRight, Shield, AlertCircle 
+  AlertTriangle, EyeOff, ChevronRight, Shield, AlertCircle, Bell, X, Scale, Download
 } from 'lucide-react';
+
+const getApiUrl = () => {
+  const base = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+  return base.endsWith('/api') ? base : base.replace(/\/?$/, '') + '/api';
+};
 
 interface Case {
   _id: string;
@@ -14,30 +20,85 @@ interface Case {
   type: string;
   isAnonymous: boolean;
   createdAt: string;
-  deadlineDate: string; // Ensure this is here
+  deadlineDate: string;
+  location?: string;
+  incidentDate?: string;
+}
+
+interface LegalNotice {
+  _id: string;
+  noticeNumber: string;
+  caseNumber?: string;
+  noticeType: string;
+  urgency: string;
+  subject: string;
+  incidentTitle: string;
+  caseType: string;
+  location: string;
+  dateOfIncident: string;
+  description: string;
+  noticeDate: string;
+  issuedBy: {
+    _id: string;
+    fullName: string;
+    email: string;
+    role: string;
+  };
+  issuerRole: string;
+  issuerName: string;
 }
 
 export const CitizenDashboard: React.FC = () => {
   const { user, token } = useAuth();
   const navigate = useNavigate();
   const [cases, setCases] = useState<Case[]>([]);
+  const [legalNotices, setLegalNotices] = useState<LegalNotice[]>([]);
+  const [selectedNotice, setSelectedNotice] = useState<LegalNotice | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const fetchCases = async () => {
+    const fetchData = async () => {
       try {
-        const res = await fetch(`${import.meta.env.VITE_API_URL}/cases`, {
+        const apiUrl = getApiUrl();
+        // Fetch cases
+        const casesRes = await fetch(`${apiUrl}/cases`, {
           headers: { Authorization: `Bearer ${token}` }
         });
-        if (res.ok) setCases(await res.json());
+        if (casesRes.ok) {
+          const casesData = await casesRes.json();
+          setCases(casesData);
+        }
+
+        // Fetch matching legal notices (by case number)
+        const noticesRes = await fetch(`${apiUrl}/legal-notice/citizen/matching`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        if (noticesRes.ok) {
+          const noticesData = await noticesRes.json();
+          setLegalNotices(Array.isArray(noticesData) ? noticesData : []);
+        }
       } catch (err) {
         console.error(err);
       } finally {
         setLoading(false);
       }
     };
-    fetchCases();
+    fetchData();
   }, [token]);
+
+  // Normalize case number for comparison (trim, uppercase, collapse spaces)
+  const normalizeCaseNumber = (s: string) =>
+    (s || '').trim().toUpperCase().replace(/\s+/g, ' ');
+
+  // Match ALL legal notices for this case by case number (judge, police, lawyer – all shown)
+  const getMatchingNotices = (caseItem: Case): LegalNotice[] => {
+    const caseNum = normalizeCaseNumber(caseItem.caseNumber || '');
+    if (!caseNum) return [];
+    return legalNotices.filter(notice => {
+      const noticeCaseNum = normalizeCaseNumber(notice.caseNumber || '');
+      return noticeCaseNum === caseNum;
+    });
+  };
 
   // --- TIMER LOGIC (Reuse from Judge Dashboard) ---
   const getTimerStatus = (deadline?: string) => {
@@ -68,6 +129,55 @@ export const CitizenDashboard: React.FC = () => {
     if(confirm("⚠️ SEND EMERGENCY ALERT? \n\nThis will instantly notify the nearest Police Control Room with your GPS location.")) {
       alert("SOS SIGNAL SENT! \nPolice are tracking your location. Stay safe.");
     }
+  };
+
+  const handleDownloadNotice = (notice: LegalNotice) => {
+    const doc = new jsPDF();
+    const margin = 20;
+    const pageW = doc.internal.pageSize.getWidth();
+    let y = margin;
+
+    const addSection = (title: string, content: string, isBold = false) => {
+      if (y > 270) { doc.addPage(); y = margin; }
+      doc.setFontSize(10);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(80, 80, 80);
+      doc.text(title, margin, y);
+      y += 6;
+      doc.setFont('helvetica', isBold ? 'bold' : 'normal');
+      doc.setFontSize(10);
+      doc.setTextColor(0, 0, 0);
+      const lines = doc.splitTextToSize(content || '—', pageW - 2 * margin);
+      doc.text(lines, margin, y);
+      y += lines.length * 5 + 4;
+    };
+
+    doc.setFontSize(18);
+    doc.setFont('helvetica', 'bold');
+    doc.text('LEGAL NOTICE', margin, y);
+    y += 10;
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'normal');
+    doc.text(`Notice #${notice.noticeNumber}`, margin, y);
+    if (notice.caseNumber) doc.text(`Case: ${notice.caseNumber}`, margin + 60, y);
+    y += 10;
+
+    addSection('Issued By', `${notice.issuerRole.charAt(0).toUpperCase() + notice.issuerRole.slice(1)}: ${notice.issuerName}${notice.issuedBy?.email ? ` (${notice.issuedBy.email})` : ''}`);
+    addSection('Notice Type', (notice.noticeType || '').replace(/_/g, ' '));
+    addSection('Urgency', (notice.urgency || '').toUpperCase());
+    addSection('Notice Date', new Date(notice.noticeDate).toLocaleDateString());
+    addSection('Subject', notice.subject || '');
+    addSection('Incident Title', notice.incidentTitle || '');
+    addSection('Case Type', (notice.caseType || '').toUpperCase());
+    addSection('Location', notice.location || '');
+    addSection('Date of Incident', notice.dateOfIncident ? new Date(notice.dateOfIncident).toLocaleDateString() : '');
+    addSection('Description', notice.description || '');
+
+    doc.setFontSize(8);
+    doc.setTextColor(120, 120, 120);
+    doc.text(`Generated from Citizen Dashboard on ${new Date().toLocaleString()}`, margin, doc.internal.pageSize.getHeight() - 10);
+
+    doc.save(`Legal-Notice-${notice.noticeNumber.replace(/\s/g, '-')}.pdf`);
   };
 
   if (loading) return <div className="p-8 text-center">Loading your dashboard...</div>;
@@ -141,8 +251,41 @@ export const CitizenDashboard: React.FC = () => {
               { label: 'Verdict', icon: CheckCircle }
             ];
 
+            const matchingNotices = getMatchingNotices(caseItem);
+            
             return (
-              <div key={caseItem._id} className="bg-white p-6 rounded-xl shadow-sm border border-slate-200 hover:shadow-md transition-shadow relative overflow-hidden">
+              <div key={caseItem._id} className={`p-6 rounded-xl shadow-sm border-2 hover:shadow-md transition-shadow relative overflow-hidden ${
+                matchingNotices.length > 0 ? 'bg-amber-50 border-amber-400' : 'bg-white border-slate-200'
+              }`}>
+                
+                {/* All legal notices for this case (judge, police, lawyer – each shown with notification icon) */}
+                {matchingNotices.length > 0 && (
+                  <div className="mb-4 space-y-2">
+                    <p className="text-xs font-semibold text-amber-800 mb-2">
+                      <Bell className="w-4 h-4 inline mr-1" /> {matchingNotices.length} Legal Notice{matchingNotices.length > 1 ? 's' : ''}
+                    </p>
+                    {matchingNotices.map((notice) => (
+                      <div
+                        key={notice._id}
+                        className="p-3 bg-amber-100 border-2 border-amber-400 rounded-lg cursor-pointer hover:bg-amber-200 transition flex items-center justify-between"
+                        onClick={() => setSelectedNotice(notice)}
+                      >
+                        <div className="flex items-center gap-3">
+                          <Bell className="w-4 h-4 text-amber-700 flex-shrink-0" />
+                          <div>
+                            <p className="font-bold text-amber-900 text-sm">
+                              {notice.issuerRole.charAt(0).toUpperCase() + notice.issuerRole.slice(1)}: {notice.issuerName}
+                            </p>
+                            <p className="text-xs text-amber-800">
+                              {notice.subject || notice.noticeNumber} — Click to view
+                            </p>
+                          </div>
+                        </div>
+                        <ChevronRight className="w-4 h-4 text-amber-700 flex-shrink-0" />
+                      </div>
+                    ))}
+                  </div>
+                )}
                 
                 {/* Visual Deadline Badge (Top Right) */}
                 {timer && (
@@ -210,6 +353,119 @@ export const CitizenDashboard: React.FC = () => {
           })
         )}
       </div>
+
+      {/* Legal Notice Modal — standard, futuristic, contrast with dashboard */}
+      {selectedNotice && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4" onClick={() => setSelectedNotice(null)}>
+          <div 
+            className="bg-slate-50 rounded-2xl shadow-2xl border border-slate-200 max-w-3xl w-full max-h-[90vh] overflow-hidden flex flex-col"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header: dark, contrast with light dashboard */}
+            <div className="sticky top-0 z-10 bg-slate-900 text-white px-6 py-4 flex items-center justify-between shrink-0">
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="p-2 rounded-xl bg-white/10">
+                  <Scale className="w-6 h-6 text-amber-400" />
+                </div>
+                <div className="min-w-0">
+                  <h2 className="text-xl font-bold tracking-tight">Legal Notice</h2>
+                  <p className="text-slate-400 text-sm font-mono truncate">#{selectedNotice.noticeNumber}</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2 shrink-0">
+                <button
+                  onClick={() => handleDownloadNotice(selectedNotice)}
+                  className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white/10 hover:bg-white/20 text-white font-medium text-sm transition"
+                  title="Download notice"
+                >
+                  <Download className="w-4 h-4" />
+                  Download
+                </button>
+                <button
+                  onClick={() => setSelectedNotice(null)}
+                  className="p-2.5 rounded-xl hover:bg-white/20 transition"
+                  aria-label="Close"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+
+            {/* Body: clean, high contrast */}
+            <div className="p-6 overflow-y-auto space-y-6">
+              {/* Issuer card */}
+              <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-sm">
+                <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Issued By</p>
+                <p className="text-slate-900 font-semibold">
+                  <span className="capitalize text-slate-700">{selectedNotice.issuerRole}</span> — {selectedNotice.issuerName}
+                </p>
+                {selectedNotice.issuedBy?.email && (
+                  <p className="text-sm text-slate-500 mt-1">{selectedNotice.issuedBy.email}</p>
+                )}
+              </div>
+
+              {/* Meta grid */}
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                {selectedNotice.caseNumber && (
+                  <div className="bg-white rounded-xl border border-slate-200 p-3 shadow-sm">
+                    <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Case No.</p>
+                    <p className="text-slate-900 font-mono font-semibold mt-0.5">{selectedNotice.caseNumber}</p>
+                  </div>
+                )}
+                <div className="bg-white rounded-xl border border-slate-200 p-3 shadow-sm">
+                  <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Notice Type</p>
+                  <p className="text-slate-900 font-medium mt-0.5 capitalize">{selectedNotice.noticeType.replace(/_/g, ' ')}</p>
+                </div>
+                <div className="bg-white rounded-xl border border-slate-200 p-3 shadow-sm">
+                  <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Urgency</p>
+                  <p className={`font-semibold mt-0.5 capitalize ${
+                    selectedNotice.urgency === 'critical' ? 'text-red-600' :
+                    selectedNotice.urgency === 'urgent' ? 'text-amber-600' : 'text-slate-700'
+                  }`}>
+                    {selectedNotice.urgency}
+                  </p>
+                </div>
+                <div className="bg-white rounded-xl border border-slate-200 p-3 shadow-sm">
+                  <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Notice Date</p>
+                  <p className="text-slate-900 font-medium mt-0.5">{new Date(selectedNotice.noticeDate).toLocaleDateString()}</p>
+                </div>
+                <div className="bg-white rounded-xl border border-slate-200 p-3 shadow-sm">
+                  <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Case Type</p>
+                  <p className="text-slate-900 font-medium mt-0.5 capitalize">{selectedNotice.caseType}</p>
+                </div>
+                <div className="bg-white rounded-xl border border-slate-200 p-3 shadow-sm">
+                  <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Location</p>
+                  <p className="text-slate-900 font-medium mt-0.5">{selectedNotice.location}</p>
+                </div>
+                <div className="bg-white rounded-xl border border-slate-200 p-3 shadow-sm">
+                  <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Incident Date</p>
+                  <p className="text-slate-900 font-medium mt-0.5">{selectedNotice.dateOfIncident ? new Date(selectedNotice.dateOfIncident).toLocaleDateString() : '—'}</p>
+                </div>
+              </div>
+
+              {/* Subject & Incident */}
+              <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-sm space-y-3">
+                <div>
+                  <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Subject</p>
+                  <p className="text-slate-900 font-medium mt-1">{selectedNotice.subject}</p>
+                </div>
+                <div>
+                  <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Incident Title</p>
+                  <p className="text-slate-900 font-medium mt-1">{selectedNotice.incidentTitle}</p>
+                </div>
+              </div>
+
+              {/* Description */}
+              <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-sm">
+                <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Description</p>
+                <div className="p-4 bg-slate-50 rounded-lg border border-slate-100">
+                  <p className="text-slate-900 whitespace-pre-wrap text-sm leading-relaxed">{selectedNotice.description}</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

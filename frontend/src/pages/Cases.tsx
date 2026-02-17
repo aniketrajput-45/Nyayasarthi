@@ -93,10 +93,16 @@ export const Cases: React.FC = () => {
             <h2 className="text-3xl font-bold text-slate-900">Case Registry</h2>
             <p className="text-slate-500 mt-1">Manage your legal portfolio.</p>
           </div>
-          {/* Show File Button for Everyone */}
-          <button onClick={() => navigate("/file-case")} className="bg-blue-600 text-white px-5 py-2.5 rounded-lg font-medium flex items-center gap-2 hover:bg-blue-700 transition">
-            <FileText size={18} /> File New Complaint
-          </button>
+          {/* Show File Button for Citizen, Legal Notice for Judge/Lawyer/Police */}
+          {user?.role === 'citizen' ? (
+            <button onClick={() => navigate("/file-case")} className="bg-blue-600 text-white px-5 py-2.5 rounded-lg font-medium flex items-center gap-2 hover:bg-blue-700 transition">
+              <FileText size={18} /> File New Complaint
+            </button>
+          ) : (
+            <button onClick={() => navigate("/legal-notice")} className="bg-gradient-to-r from-indigo-600 to-purple-600 text-white px-5 py-2.5 rounded-lg font-medium flex items-center gap-2 hover:from-indigo-700 hover:to-purple-700 transition shadow-lg shadow-indigo-500/25">
+              <FileText size={18} /> Legal Notice
+            </button>
+          )}
         </div>
 
         {/* --- SECTION 1: NEW OPPORTUNITIES (MOVED TO TOP) --- */}
