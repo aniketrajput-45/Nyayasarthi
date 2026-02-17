@@ -1,11 +1,17 @@
 import React, { useEffect, useState } from 'react';
 import { useAuth } from '../../hooks/useAuth';
 import { useNavigate } from 'react-router-dom';
+import { jsPDF } from 'jspdf';
 import { 
   Briefcase, Gavel, Clock, TrendingUp, Calendar, 
-  Plus, X, CheckCircle, ArrowRight
+  Plus, X, CheckCircle, Bell, ChevronRight, Scale, Download
 } from 'lucide-react';
 import { Notifications } from '../Notifications'; // <--- IMPORT THE BELL
+
+const getApiUrl = () => {
+  const base = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+  return base.endsWith('/api') ? base : base.replace(/\/?$/, '') + '/api';
+};
 
 interface Case {
   _id: string;
@@ -18,6 +24,24 @@ interface Case {
   createdAt: string;
   status: string;
   hearings?: any[];
+}
+
+interface LegalNotice {
+  _id: string;
+  noticeNumber: string;
+  caseNumber?: string;
+  subject: string;
+  description: string;
+  issuerRole: string;
+  issuerName: string;
+  noticeType?: string;
+  urgency?: string;
+  noticeDate?: string;
+  incidentTitle?: string;
+  caseType?: string;
+  location?: string;
+  dateOfIncident?: string;
+  issuedBy?: { fullName?: string; email?: string; role?: string };
 }
 
 interface Hearing {
@@ -34,6 +58,8 @@ export const LawyerDashboard: React.FC = () => {
   const navigate = useNavigate();
   const [activeCases, setActiveCases] = useState<Case[]>([]);
   const [upcomingHearings, setUpcomingHearings] = useState<Hearing[]>([]);
+  const [legalNotices, setLegalNotices] = useState<LegalNotice[]>([]);
+  const [selectedNotice, setSelectedNotice] = useState<LegalNotice | null>(null);
   const [loading, setLoading] = useState(true);
 
   // Modal State
@@ -47,12 +73,13 @@ export const LawyerDashboard: React.FC = () => {
   };
 
   useEffect(() => {
+    const apiUrl = getApiUrl();
     const fetchData = async () => {
       try {
-        const res = await fetch(`${import.meta.env.VITE_API_URL}/cases`, {
+        const res = await fetch(`${apiUrl}/cases`, {
           headers: { Authorization: `Bearer ${token}` },
         });
-        
+
         if (res.ok) {
           const allCases: Case[] = await res.json();
           const myId = user?.userId || user?._id;
@@ -86,6 +113,16 @@ export const LawyerDashboard: React.FC = () => {
 
           setUpcomingHearings(sorted);
         }
+
+        // Fetch legal notices for lawyer's assigned cases – only judge-issued (no police/lawyer)
+        const noticesRes = await fetch(`${apiUrl}/legal-notice/lawyer/for-assigned-cases`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (noticesRes.ok) {
+          const noticesData = await noticesRes.json();
+          const list = Array.isArray(noticesData) ? noticesData : [];
+          setLegalNotices(list.filter((n: LegalNotice) => n.issuerRole === 'judge'));
+        }
       } catch (error) {
         console.error('Error fetching data:', error);
       } finally {
@@ -95,10 +132,114 @@ export const LawyerDashboard: React.FC = () => {
     fetchData();
   }, [token, user]);
 
+  // Match legal notices by case number (same logic as citizen)
+  const normalizeCaseNumber = (s: string) =>
+    (s || '').trim().toUpperCase().replace(/\s+/g, ' ');
+  const getMatchingNotices = (caseItem: Case): LegalNotice[] => {
+    const caseNum = normalizeCaseNumber(caseItem.caseNumber || '');
+    if (!caseNum) return [];
+    return legalNotices.filter(notice => {
+      const noticeCaseNum = normalizeCaseNumber(notice.caseNumber || '');
+      return noticeCaseNum === caseNum;
+    });
+  };
+
+  const handleDownloadNotice = (notice: LegalNotice) => {
+    const doc = new jsPDF();
+    const margin = 14;
+    const pageW = doc.internal.pageSize.getWidth();
+    const pageH = doc.internal.pageSize.getHeight();
+    const lineH = 4;
+    let y = 0;
+
+    // Single page only: compact layout so everything fits
+    const addBlockLabel = (label: string) => {
+      doc.setDrawColor(148, 163, 184);
+      doc.setLineWidth(0.25);
+      doc.line(margin, y, pageW - margin, y);
+      y += 3.5;
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(7);
+      doc.setTextColor(100, 116, 139);
+      doc.text(label.toUpperCase(), margin, y);
+      y += 5;
+    };
+
+    const addField = (label: string, value: string) => {
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(7);
+      doc.setTextColor(71, 85, 105);
+      doc.text(`${label}:`, margin, y);
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(9);
+      doc.setTextColor(15, 23, 42);
+      const lines = doc.splitTextToSize(value || '—', pageW - margin - 48);
+      doc.text(lines, margin, y + lineH);
+      y += lineH + lines.length * lineH + 3;
+    };
+
+    const addBody = (label: string, content: string) => {
+      addBlockLabel(label);
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(9);
+      doc.setTextColor(30, 41, 59);
+      const lines = doc.splitTextToSize(content || '—', pageW - 2 * margin);
+      doc.text(lines, margin, y);
+      y += lines.length * lineH + 5;
+    };
+
+    // Header (compact)
+    doc.setFillColor(30, 41, 59);
+    doc.rect(0, 0, pageW, 22, 'F');
+    doc.setTextColor(255, 255, 255);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(14);
+    doc.text('LEGAL NOTICE', margin, 12);
+    doc.setFontSize(8);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(251, 191, 36);
+    doc.text(`#${notice.noticeNumber}`, margin, 18);
+    doc.setTextColor(203, 213, 225);
+    if (notice.caseNumber) doc.text(`Case: ${notice.caseNumber}`, margin + 48, 18);
+    doc.setTextColor(0, 0, 0);
+    y = 28;
+
+    addBlockLabel('Issued by');
+    addField('Authority', `${notice.issuerRole.charAt(0).toUpperCase() + notice.issuerRole.slice(1)} — ${notice.issuerName}`);
+    if (notice.issuedBy?.email) addField('Contact', notice.issuedBy.email);
+    y += 2;
+
+    addBlockLabel('Notice details');
+    if (notice.noticeType) addField('Notice type', (notice.noticeType || '').replace(/_/g, ' '));
+    if (notice.urgency) addField('Urgency', (notice.urgency || '').toUpperCase());
+    if (notice.noticeDate) addField('Notice date', new Date(notice.noticeDate).toLocaleDateString());
+    y += 2;
+
+    addBlockLabel('Case & incident');
+    if (notice.caseNumber) addField('Case no.', notice.caseNumber);
+    if (notice.caseType) addField('Case type', (notice.caseType || '').toUpperCase());
+    if (notice.location) addField('Location', notice.location);
+    if (notice.dateOfIncident) addField('Incident date', new Date(notice.dateOfIncident).toLocaleDateString());
+    if (notice.incidentTitle) addField('Incident title', notice.incidentTitle);
+    y += 2;
+
+    addBlockLabel('Subject');
+    addField('Subject', notice.subject || '—');
+    y += 2;
+
+    addBody('Description', notice.description || '');
+
+    doc.setFontSize(6);
+    doc.setTextColor(148, 163, 184);
+    doc.text(`Generated from Lawyer Dashboard · ${new Date().toLocaleString()}`, margin, pageH - 6);
+
+    doc.save(`Legal-Notice-${(notice.noticeNumber || '').replace(/\s/g, '-')}.pdf`);
+  };
+
   const handleScheduleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      await fetch(`${import.meta.env.VITE_API_URL}/cases/${hearingForm.caseId}/hearings`, {
+      await fetch(`${getApiUrl()}/cases/${hearingForm.caseId}/hearings`, {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',
@@ -226,8 +367,46 @@ export const LawyerDashboard: React.FC = () => {
               </div>
             ) : (
               <div className="grid gap-4">
-                {activeCases.map((c) => (
-                  <div key={c._id} className="p-5 rounded-xl border border-slate-200 hover:border-blue-200 hover:shadow-md transition-all bg-white">
+                {activeCases.map((c) => {
+                  const matchingNotices = getMatchingNotices(c);
+                  const hasNotices = matchingNotices.length > 0;
+                  return (
+                  <div
+                    key={c._id}
+                    className={`p-5 rounded-xl border-2 transition-all ${
+                      hasNotices
+                        ? 'bg-amber-50 border-amber-400 hover:shadow-md hover:border-amber-500'
+                        : 'border-slate-200 bg-white hover:border-blue-200 hover:shadow-md'
+                    }`}
+                  >
+                    {/* Legal notices for this case (judge / police – same as citizen) */}
+                    {hasNotices && (
+                      <div className="mb-4 space-y-2">
+                        <p className="text-xs font-semibold text-amber-800 mb-2">
+                          <Bell className="w-4 h-4 inline mr-1" /> {matchingNotices.length} Legal Notice{matchingNotices.length > 1 ? 's' : ''}
+                        </p>
+                        {matchingNotices.map((notice) => (
+                          <div
+                            key={notice._id}
+                            className="p-3 bg-amber-100 border-2 border-amber-400 rounded-lg cursor-pointer hover:bg-amber-200 transition flex items-center justify-between"
+                            onClick={() => setSelectedNotice(notice)}
+                          >
+                            <div className="flex items-center gap-3">
+                              <Bell className="w-4 h-4 text-amber-700 flex-shrink-0" />
+                              <div>
+                                <p className="font-bold text-amber-900 text-sm">
+                                  {notice.issuerRole.charAt(0).toUpperCase() + notice.issuerRole.slice(1)}: {notice.issuerName}
+                                </p>
+                                <p className="text-xs text-amber-800">
+                                  {notice.subject || notice.noticeNumber} — Click to view
+                                </p>
+                              </div>
+                            </div>
+                            <ChevronRight className="w-4 h-4 text-amber-700 flex-shrink-0" />
+                          </div>
+                        ))}
+                      </div>
+                    )}
                     <div className="flex justify-between items-start">
                       <div>
                         {/* STATUS BADGES */}
@@ -270,7 +449,7 @@ export const LawyerDashboard: React.FC = () => {
                                onClick={async (e) => {
                                  e.stopPropagation();
                                  if(confirm("Confirm: Submit this case to the Judge?\n\nThis will officially start the legal timer (BNSS).")) {
-                                    const res = await fetch(`${import.meta.env.VITE_API_URL}/cases/${c._id}/submit-to-court`, {
+                                    const res = await fetch(`${getApiUrl()}/cases/${c._id}/submit-to-court`, {
                                       method: 'PUT',
                                       headers: { Authorization: `Bearer ${token}` }
                                     });
@@ -288,13 +467,125 @@ export const LawyerDashboard: React.FC = () => {
                       </div>
                     </div>
                   </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>
         </div>
 
       </div>
+
+      {/* Legal Notice modal — same full info as citizen */}
+      {selectedNotice && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4" onClick={() => setSelectedNotice(null)}>
+          <div className="bg-slate-50 rounded-2xl shadow-2xl border border-slate-200 max-w-3xl w-full max-h-[90vh] overflow-hidden flex flex-col" onClick={(e) => e.stopPropagation()}>
+            <div className="sticky top-0 z-10 bg-slate-900 text-white px-6 py-4 flex items-center justify-between shrink-0">
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="p-2 rounded-xl bg-white/10">
+                  <Scale className="w-6 h-6 text-amber-400" />
+                </div>
+                <div className="min-w-0">
+                  <h2 className="text-xl font-bold tracking-tight">Legal Notice</h2>
+                  <p className="text-slate-400 text-sm font-mono truncate">#{selectedNotice.noticeNumber}</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => handleDownloadNotice(selectedNotice)}
+                  className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white/10 hover:bg-white/20 text-white font-medium text-sm transition"
+                  title="Download as PDF"
+                >
+                  <Download className="w-4 h-4" />
+                  Download
+                </button>
+                <button type="button" onClick={() => setSelectedNotice(null)} className="p-2.5 rounded-xl hover:bg-white/20 transition" aria-label="Close">
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+            <div className="p-6 overflow-y-auto space-y-6">
+              <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-sm">
+                <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Issued By</p>
+                <p className="text-slate-900 font-semibold">
+                  <span className="capitalize text-slate-700">{selectedNotice.issuerRole}</span> — {selectedNotice.issuerName}
+                </p>
+                {selectedNotice.issuedBy?.email && (
+                  <p className="text-sm text-slate-500 mt-1">{selectedNotice.issuedBy.email}</p>
+                )}
+              </div>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                {selectedNotice.caseNumber && (
+                  <div className="bg-white rounded-xl border border-slate-200 p-3 shadow-sm">
+                    <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Case No.</p>
+                    <p className="text-slate-900 font-mono font-semibold mt-0.5">{selectedNotice.caseNumber}</p>
+                  </div>
+                )}
+                {selectedNotice.noticeType && (
+                  <div className="bg-white rounded-xl border border-slate-200 p-3 shadow-sm">
+                    <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Notice Type</p>
+                    <p className="text-slate-900 font-medium mt-0.5 capitalize">{selectedNotice.noticeType.replace(/_/g, ' ')}</p>
+                  </div>
+                )}
+                {selectedNotice.urgency && (
+                  <div className="bg-white rounded-xl border border-slate-200 p-3 shadow-sm">
+                    <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Urgency</p>
+                    <p className={`font-semibold mt-0.5 capitalize ${
+                      selectedNotice.urgency === 'critical' ? 'text-red-600' :
+                      selectedNotice.urgency === 'urgent' ? 'text-amber-600' : 'text-slate-700'
+                    }`}>
+                      {selectedNotice.urgency}
+                    </p>
+                  </div>
+                )}
+                {selectedNotice.noticeDate && (
+                  <div className="bg-white rounded-xl border border-slate-200 p-3 shadow-sm">
+                    <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Notice Date</p>
+                    <p className="text-slate-900 font-medium mt-0.5">{new Date(selectedNotice.noticeDate).toLocaleDateString()}</p>
+                  </div>
+                )}
+                {selectedNotice.caseType && (
+                  <div className="bg-white rounded-xl border border-slate-200 p-3 shadow-sm">
+                    <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Case Type</p>
+                    <p className="text-slate-900 font-medium mt-0.5 capitalize">{selectedNotice.caseType}</p>
+                  </div>
+                )}
+                {selectedNotice.location && (
+                  <div className="bg-white rounded-xl border border-slate-200 p-3 shadow-sm">
+                    <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Location</p>
+                    <p className="text-slate-900 font-medium mt-0.5">{selectedNotice.location}</p>
+                  </div>
+                )}
+                {selectedNotice.dateOfIncident && (
+                  <div className="bg-white rounded-xl border border-slate-200 p-3 shadow-sm">
+                    <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Incident Date</p>
+                    <p className="text-slate-900 font-medium mt-0.5">{new Date(selectedNotice.dateOfIncident).toLocaleDateString()}</p>
+                  </div>
+                )}
+              </div>
+              <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-sm space-y-3">
+                <div>
+                  <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Subject</p>
+                  <p className="text-slate-900 font-medium mt-1">{selectedNotice.subject}</p>
+                </div>
+                {selectedNotice.incidentTitle && (
+                  <div>
+                    <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Incident Title</p>
+                    <p className="text-slate-900 font-medium mt-1">{selectedNotice.incidentTitle}</p>
+                  </div>
+                )}
+              </div>
+              <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-sm">
+                <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Description</p>
+                <div className="p-4 bg-slate-50 rounded-lg border border-slate-100">
+                  <p className="text-slate-900 whitespace-pre-wrap text-sm leading-relaxed">{selectedNotice.description}</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* SCHEDULE MODAL */}
       {isScheduleOpen && (
