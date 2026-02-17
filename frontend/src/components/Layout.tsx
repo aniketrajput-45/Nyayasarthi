@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useAuth } from '../hooks/useAuth';
 import { useNavigate, Outlet } from 'react-router-dom';
 import { Menu, X, LogOut, MessageSquare, Home, FileText, BarChart3 } from 'lucide-react';
+import { Chatbot } from './Chatbot'; // <-- ADDED: Import the Chatbot
 
 const navigationItems = {
   citizen: [
@@ -98,6 +99,9 @@ export const Layout: React.FC = () => {
       <main className="flex-1 overflow-auto">
         <Outlet />
       </main>
+
+      {/* <-- ADDED: Chatbot component rendered here --> */}
+      <Chatbot />
     </div>
   );
 };
