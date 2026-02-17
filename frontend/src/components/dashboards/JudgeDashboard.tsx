@@ -2,10 +2,11 @@ import React, { useEffect, useState } from 'react';
 import { useAuth } from '../../hooks/useAuth';
 import { 
   Gavel, AlertCircle, CheckCircle, Clock, 
-  ArrowRight, Shield, Briefcase, FileText 
+  ArrowRight, Shield, Briefcase, FileText, Lock 
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { AssignModal } from '../AssignModal'; 
+import { Notifications } from '../Notifications'; // Don't forget the bell!
 
 interface Case {
   _id: string;
@@ -14,26 +15,20 @@ interface Case {
   status: string;
   type: string;
   deadlineDate: string;
-  assignedLawyer?: { 
-    _id: string; 
-    fullName: string; 
-  };
-  assignedPolice?: { 
-    _id: string; 
-    fullName: string; 
-  };
+  assignedLawyer?: { _id: string; fullName: string; };
+  assignedPolice?: { _id: string; fullName: string; };
 }
 
 export const JudgeDashboard: React.FC = () => {
-  const { token } = useAuth();
+  const { token, user } = useAuth();
   const navigate = useNavigate();
   
   // Stats
   const [stats, setStats] = useState({ total: 0, pending: 0, unassigned: 0 });
   
   // Data Buckets
-  const [unassignedCases, setUnassignedCases] = useState<Case[]>([]); // Need Police
-  const [assignedCases, setAssignedCases] = useState<Case[]>([]);     // Already Assigned
+  const [unassignedCases, setUnassignedCases] = useState<Case[]>([]);
+  const [assignedCases, setAssignedCases] = useState<Case[]>([]);    
   
   const [loading, setLoading] = useState(true);
 
@@ -41,39 +36,66 @@ export const JudgeDashboard: React.FC = () => {
   const [assignModalOpen, setAssignModalOpen] = useState(false);
   const [selectedCase, setSelectedCase] = useState<Case | null>(null);
 
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const res = await fetch(`${import.meta.env.VITE_API_URL}/cases`, {
-          headers: { Authorization: `Bearer ${token}` },
+  const fetchData = async () => {
+    try {
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/cases`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      
+      if (res.ok) {
+        const allCases: Case[] = await res.json();
+        
+        // 1. ACTION REQUIRED (Unassigned & Not Resolved)
+        const pending = allCases.filter(c => !c.assignedPolice && c.status !== 'resolved');
+        
+        // 2. ACTIVE DOCKET (Assigned & Not Resolved)
+        const active = allCases.filter(c => c.assignedPolice && c.status !== 'resolved');
+
+        setStats({
+          total: allCases.length,
+          pending: active.length,
+          unassigned: pending.length
         });
         
-        if (res.ok) {
-          const allCases: Case[] = await res.json();
-          
-          // 1. ACTION REQUIRED: Cases waiting for Police Assignment
-          const pending = allCases.filter(c => !c.assignedPolice && c.status !== 'resolved');
-          
-          // 2. MY DOCKET: Cases where Police IS assigned (Ongoing)
-          const active = allCases.filter(c => c.assignedPolice && c.status !== 'resolved');
-
-          setStats({
-            total: allCases.length,
-            pending: allCases.filter(c => c.status !== 'resolved').length,
-            unassigned: pending.length
-          });
-          
-          setUnassignedCases(pending);
-          setAssignedCases(active);
-        }
-      } catch (error) {
-        console.error("Error loading judge data", error);
-      } finally {
-        setLoading(false);
+        setUnassignedCases(pending);
+        setAssignedCases(active);
       }
-    };
+    } catch (error) {
+      console.error("Error loading judge data", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
     fetchData();
   }, [token]);
+
+  // --- CLOSE CASE FUNCTION ---
+  const handleCloseCase = async (id: string, caseNumber: string) => {
+    if (!confirm(`⚖️ ISSUE VERDICT?\n\nAre you sure you want to close Case #${caseNumber}?\n\nThis will:\n1. Mark the case as RESOLVED.\n2. Notify all parties (Citizen, Police, Lawyer).\n3. Archive the case file.`)) {
+      return;
+    }
+
+    try {
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/cases/${id}/verdict`, {
+        method: 'PUT',
+        headers: { 
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (res.ok) {
+        alert(`Case #${caseNumber} Closed Successfully.`);
+        fetchData(); // Refresh the list to remove the closed case
+      } else {
+        alert("Failed to close case.");
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
 
   // --- TIMER LOGIC ---
   const getTimerStatus = (deadline?: string) => {
@@ -91,19 +113,26 @@ export const JudgeDashboard: React.FC = () => {
 
   const handleAssignSuccess = () => {
     setAssignModalOpen(false);
-    window.location.reload(); 
+    fetchData();
   };
 
   if (loading) return <div className="p-8">Loading Judicial Overview...</div>;
 
   return (
     <div className="p-8 bg-slate-50 min-h-screen">
-      <header className="mb-8">
-        <h1 className="text-3xl font-bold text-slate-900 flex items-center gap-3">
-          <Gavel className="text-slate-700" size={32} /> Judicial Dashboard
-        </h1>
-        <p className="text-slate-500 mt-1">Manage case assignments and court proceedings.</p>
-      </header>
+      
+      {/* HEADER */}
+      <div className="flex justify-between items-center mb-8">
+        <div>
+          <h1 className="text-3xl font-bold text-slate-900 flex items-center gap-3">
+            <Gavel className="text-slate-700" size={32} /> Judicial Dashboard
+          </h1>
+          <p className="text-slate-500 mt-1">Honorable Judge {user?.fullName}</p>
+        </div>
+        <div className="bg-white p-2 rounded-full shadow-sm border border-slate-200">
+           <Notifications />
+        </div>
+      </div>
 
       {/* STATS ROW */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
@@ -182,14 +211,12 @@ export const JudgeDashboard: React.FC = () => {
                        <span className="text-xs text-orange-600 font-bold bg-orange-50 px-2 py-1 rounded">Needs Police</span>
                     </td>
                     <td className="px-6 py-4 text-right">
-                      {/* --- NEW BUTTON: VIEW DETAILS --- */}
                       <button 
                         onClick={() => navigate(`/case/${c._id}`)}
                         className="text-slate-500 hover:text-blue-600 font-medium text-sm mr-4 transition-colors"
                       >
                          View Details
                       </button>
-                      
                       <button 
                         onClick={() => { setSelectedCase(c); setAssignModalOpen(true); }}
                         className="bg-slate-900 text-white text-sm px-4 py-2 rounded-lg hover:bg-slate-800 transition shadow-sm inline-flex items-center gap-2"
@@ -212,10 +239,10 @@ export const JudgeDashboard: React.FC = () => {
             <h3 className="font-bold text-blue-900 text-lg flex items-center gap-2">
               <Gavel size={20} /> My Active Docket
             </h3>
-            <p className="text-blue-700 text-sm">Ongoing cases currently under investigation or trial.</p>
+            <p className="text-blue-700 text-sm">Cases currently in trial. Issue verdicts here.</p>
           </div>
           <div className="bg-white px-3 py-1 rounded-full text-blue-800 text-xs font-bold border border-blue-100">
-            {assignedCases.length} Active Cases
+            {assignedCases.length} Active
           </div>
         </div>
 
@@ -241,7 +268,6 @@ export const JudgeDashboard: React.FC = () => {
                     <td className="px-6 py-4">
                       <p className="font-bold text-slate-900">{c.title}</p>
                       <p className="text-xs text-slate-500 font-mono">{c.caseNumber}</p>
-                      <span className="text-xs bg-slate-100 px-2 py-0.5 rounded mt-1 inline-block capitalize">{c.type}</span>
                     </td>
                     <td className="px-6 py-4">
                        <span className={`text-xs font-bold px-2 py-1 rounded ${timer.color.split(' ')[0]} ${timer.color.split(' ')[1]}`}>
@@ -264,13 +290,25 @@ export const JudgeDashboard: React.FC = () => {
                           )}
                        </div>
                     </td>
-                    <td className="px-6 py-4 text-right">
+                    <td className="px-6 py-4 text-right flex items-center justify-end gap-3">
+                      
+                      {/* VIEW BUTTON */}
                       <button 
                         onClick={() => navigate(`/case/${c._id}`)}
-                        className="text-blue-600 hover:text-blue-800 font-medium text-sm flex items-center gap-1 ml-auto"
+                        className="text-blue-600 hover:text-blue-800 font-medium text-sm flex items-center gap-1"
                       >
-                         View Details <ArrowRight size={14} />
+                         View Details
                       </button>
+
+                      {/* --- NEW: CLOSE CASE BUTTON --- */}
+                      <button 
+                        onClick={() => handleCloseCase(c._id, c.caseNumber)}
+                        className="bg-green-600 text-white text-xs px-3 py-2 rounded-lg hover:bg-green-700 transition shadow-sm font-bold flex items-center gap-2"
+                        title="Close Case & Issue Verdict"
+                      >
+                         <Lock size={12} /> Issue Verdict
+                      </button>
+                      
                     </td>
                   </tr>
                 );

@@ -3,6 +3,7 @@ import Case from '../models/Case.js';
 import User from '../models/User.js';
 import { verifyToken, checkRole } from '../middleware/auth.js';
 import Notification from '../models/Notification.js';
+import { notifyAllParties } from '../utils/notificationSystem.js';
 
 const router = express.Router();
 
@@ -164,62 +165,43 @@ router.get('/:id', verifyToken, async (req, res) => {
   }
 });
 
-// 4. Assign Professionals (Judge Only)
+// 4. Assign Professionals
 router.put('/:id/assign', verifyToken, checkRole(['judge']), async (req, res) => {
   try {
     const { assignedPolice, assignedLawyer } = req.body;
     
-    // Fetch case WITHOUT populating first to check IDs easily
-    const caseItem = await Case.findById(req.params.id);
+    // We populate 'filedBy' so we get the Citizen's ID
+    const caseItem = await Case.findById(req.params.id); 
+    
     if (!caseItem) return res.status(404).json({ message: 'Case not found' });
 
+    // Update Fields
     if (assignedPolice) caseItem.assignedPolice = assignedPolice;
     if (assignedLawyer) caseItem.assignedLawyer = assignedLawyer;
-    
-    // Auto-assign Judge
     if (!caseItem.assignedJudge) caseItem.assignedJudge = req.user.userId; 
 
-    // --- NOTIFICATION 1: Notify the Police Officer ---
-    if (assignedPolice) {
-      await new Notification({
-        recipient: assignedPolice,
-        message: `🚨 NEW ASSIGNMENT: Case #${caseItem.caseNumber} assigned to you.`,
-        type: 'alert',
-        caseId: caseItem._id
-      }).save();
+    // Status Update Logic
+    let updateMessage = "";
+    if (assignedPolice && !caseItem.assignedPolice) {
+      updateMessage = `Update: An Investigating Officer has been assigned to Case #${caseItem.caseNumber}. Investigation starting now.`;
+      caseItem.status = 'under-investigation';
+    } else if (assignedLawyer && !caseItem.assignedLawyer) {
+      updateMessage = `Update: A Legal Defense Counsel has been assigned to Case #${caseItem.caseNumber}.`;
+    } else {
+      updateMessage = `Update: New professionals assigned to Case #${caseItem.caseNumber}.`;
     }
-
-
-    // --- NOTIFICATION 2: Notify the Lawyer (if one exists) ---
-    // We notify them that their case has moved to investigation
-    if (caseItem.assignedLawyer && assignedPolice) {
-      await new Notification({
-        recipient: caseItem.assignedLawyer,
-        message: `Case Update: An Investigating Officer has been assigned to Case #${caseItem.caseNumber}. The investigation has begun.`,
-        type: 'info',
-        caseId: caseItem._id
-      }).save();
-    }
-
-    // Make sure the judge doing the assignment is recorded on the case
-    caseItem.assignedJudge = req.user.userId;
-
-
-    // --- THE FIX: Auto-assign the Judge who is doing this action ---
-    if (!caseItem.assignedJudge) {
-       caseItem.assignedJudge = req.user.userId; 
-    }
-
-    
-    if (caseItem.status === 'filed') caseItem.status = 'under-investigation';
-
-    if (caseItem.status === 'filed') caseItem.status = 'under-investigation';
 
     await caseItem.save();
-    res.json({ message: 'Assigned successfully', case: caseItem });
+
+    // --- 🔔 THE MAGIC LINE: NOTIFY EVERYONE (Citizen included) ---
+    await notifyAllParties(caseItem, updateMessage, 'info');
+    // ------------------------------------------------------------
+
+    res.json({ message: 'Assigned and parties notified', case: caseItem });
     
   } catch (error) {
-    res.status(500).json({ message: 'Error assigning case', error: error.message });
+    console.error(error);
+    res.status(500).json({ message: 'Error assigning case' });
   }
 });
 // 5. Claim Case (Lawyer) -> FIXED TO RESOLVE 500 ERROR
@@ -396,6 +378,24 @@ router.put('/:id/charge-sheet', verifyToken, checkRole(['police']), async (req, 
     res.json({ message: 'Charge Sheet filed successfully', case: caseItem });
   } catch (error) {
     res.status(500).json({ message: 'Error filing charge sheet', error: error.message });
+  }
+});
+
+// PUT /api/cases/:id/verdict
+router.put('/:id/verdict', verifyToken, checkRole(['judge']), async (req, res) => {
+  try {
+    const caseItem = await Case.findById(req.params.id);
+    if (!caseItem) return res.status(404).json({ message: 'Case not found' });
+
+    caseItem.status = 'resolved'; // <--- This triggers the 'Verdict' step in timeline
+    await caseItem.save();
+
+    // Notify Everyone
+    await notifyAllParties(caseItem, `⚖️ VERDICT ISSUED: Case #${caseItem.caseNumber} has been closed by the Judge.`, 'success');
+
+    res.json(caseItem);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
   }
 });
 
