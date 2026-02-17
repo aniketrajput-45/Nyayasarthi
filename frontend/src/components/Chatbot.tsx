@@ -28,15 +28,19 @@ export const Chatbot: React.FC = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
 
+  useEffect(() => {
+    scrollToBottom();
+  }, [messages]);
+
   // ==========================================
-  // --- NEW: BROWSER LOCAL STORAGE LOGIC ---
+  // --- FOOLPROOF LOCAL STORAGE LOGIC ---
   // ==========================================
 
-  // 1. LOAD CHAT HISTORY when the user logs in
+  // 1. ONLY LOAD chat history when user logs in
   useEffect(() => {
     if (user) {
-      // Handle different ways ID might be stored depending on your auth setup
-      const userId = user.userId || user._id; 
+      // Safely grab the ID depending on your auth setup
+      const userId = user.userId || user._id || user.id || 'default'; 
       const savedChat = localStorage.getItem(`chat_history_${userId}`);
       
       if (savedChat) {
@@ -56,15 +60,13 @@ export const Chatbot: React.FC = () => {
     }
   }, [user]);
 
-  // 2. SAVE CHAT HISTORY whenever a new message is sent/received
-  useEffect(() => {
+  // 2. HELPER FUNCTION: Only save when an actual message happens
+  const saveMessagesToStorage = (updatedMessages: ChatbotMessage[]) => {
     if (user) {
-      const userId = user.userId || user._id;
-      // Save the current messages array to the browser's memory
-      localStorage.setItem(`chat_history_${userId}`, JSON.stringify(messages));
+      const userId = user.userId || user._id || user.id || 'default';
+      localStorage.setItem(`chat_history_${userId}`, JSON.stringify(updatedMessages));
     }
-    scrollToBottom(); // Keep the screen scrolled to the newest message
-  }, [messages, user]);
+  };
 
   // ==========================================
 
@@ -80,7 +82,11 @@ export const Chatbot: React.FC = () => {
       text: input,
     };
 
-    setMessages((prev) => [...prev, userMessage]);
+    // --- FIX: Update state AND immediately save to localStorage ---
+    const newMessagesWithUser = [...messages, userMessage];
+    setMessages(newMessagesWithUser);
+    saveMessagesToStorage(newMessagesWithUser);
+
     setInput('');
     setLoading(true);
     setError('');
@@ -135,7 +141,13 @@ export const Chatbot: React.FC = () => {
         originalQuery: currentQuery
       };
 
-      setMessages((prev) => [...prev, botMessage]);
+      // --- FIX: Ensure we use the most recent state when the bot replies, then save it ---
+      setMessages((prev) => {
+        const finalMessages = [...prev, botMessage];
+        saveMessagesToStorage(finalMessages); 
+        return finalMessages;
+      });
+
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Error getting response');
     } finally {
