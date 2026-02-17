@@ -15,7 +15,7 @@ interface ChatbotMessage {
 }
 
 export const Chatbot: React.FC = () => {
-  const { token } = useAuth();
+  const { user, token } = useAuth();
   const navigate = useNavigate(); 
   const [isOpen, setIsOpen] = useState(false);
   const [messages, setMessages] = useState<ChatbotMessage[]>([]);
@@ -28,9 +28,45 @@ export const Chatbot: React.FC = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
 
+  // ==========================================
+  // --- NEW: BROWSER LOCAL STORAGE LOGIC ---
+  // ==========================================
+
+  // 1. LOAD CHAT HISTORY when the user logs in
   useEffect(() => {
-    scrollToBottom();
-  }, [messages]);
+    if (user) {
+      // Handle different ways ID might be stored depending on your auth setup
+      const userId = user.userId || user._id; 
+      const savedChat = localStorage.getItem(`chat_history_${userId}`);
+      
+      if (savedChat) {
+        try {
+          setMessages(JSON.parse(savedChat)); // Load their previous chat
+        } catch (e) {
+          console.error("Could not load chat history", e);
+          setMessages([]);
+        }
+      } else {
+        setMessages([]); // Start fresh if they have no history
+      }
+    } else {
+      // If no user is logged in (logout), clear the screen and close chat
+      setMessages([]);
+      setIsOpen(false);
+    }
+  }, [user]);
+
+  // 2. SAVE CHAT HISTORY whenever a new message is sent/received
+  useEffect(() => {
+    if (user) {
+      const userId = user.userId || user._id;
+      // Save the current messages array to the browser's memory
+      localStorage.setItem(`chat_history_${userId}`, JSON.stringify(messages));
+    }
+    scrollToBottom(); // Keep the screen scrolled to the newest message
+  }, [messages, user]);
+
+  // ==========================================
 
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -65,14 +101,10 @@ export const Chatbot: React.FC = () => {
 
       const data = await response.json();
       
-      // ==========================================
-      // --- NEW: SMART JSON PARSER ---
-      // ==========================================
       let displayText = data.message || data.response || '';
       let extractedBns = data.bnsSection;
       let extractedCategory = data.caseCategory;
       let extractedEvidence = data.requiredEvidence;
-      // CHANGE 1: Extract the drafted description
       let extractedDraft = data.draftedDescription; 
 
       const stringToParse = typeof data === 'string' ? data : displayText;
@@ -86,13 +118,11 @@ export const Chatbot: React.FC = () => {
           extractedBns = aiData.bnsSection;
           extractedCategory = aiData.caseCategory;
           extractedEvidence = aiData.requiredEvidence;
-          // CHANGE 2: Extract from the parsed string
           extractedDraft = aiData.draftedDescription; 
         } catch (parseError) {
           console.error("Could not parse AI JSON string:", parseError);
         }
       }
-      // ==========================================
 
       const botMessage: ChatbotMessage = {
         id: (Date.now() + 1).toString(),
@@ -101,7 +131,6 @@ export const Chatbot: React.FC = () => {
         bnsSection: extractedBns, 
         caseCategory: extractedCategory,
         requiredEvidence: extractedEvidence,
-        // CHANGE 3: Add it to the message object
         draftedDescription: extractedDraft,
         originalQuery: currentQuery
       };
@@ -163,7 +192,8 @@ export const Chatbot: React.FC = () => {
                   {msg.text}
                 </div>
 
-                {msg.type === 'bot' && msg.bnsSection && (
+                {/* --- STRICT ROLE CHECK --- */}
+                {user?.role === 'citizen' && msg.type === 'bot' && msg.bnsSection && msg.draftedDescription && (
                   <button 
                     onClick={() => {
                       setIsOpen(false);
@@ -172,7 +202,6 @@ export const Chatbot: React.FC = () => {
                           bnsSection: msg.bnsSection, 
                           type: msg.caseCategory, 
                           requiredEvidence: msg.requiredEvidence,
-                          // CHANGE 4: Prioritize the AI drafted description, if it fails, use the short query
                           description: msg.draftedDescription || msg.originalQuery 
                         } 
                       });
