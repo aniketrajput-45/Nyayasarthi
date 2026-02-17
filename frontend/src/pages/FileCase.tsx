@@ -54,7 +54,7 @@ export const FileCase: React.FC = () => {
     }
   };
 
-  // --- THIS IS THE FIX: Convert File to Base64 String ---
+  // Convert File to Base64 String
   const toBase64 = (file: File): Promise<string> => {
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
@@ -63,14 +63,13 @@ export const FileCase: React.FC = () => {
       reader.onerror = error => reject(error);
     });
   };
-  // ------------------------------------------------------
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     
     try {
-      // --- THIS IS THE FIX: Process real files instead of mock URLs ---
+      // Process real files to Base64
       const uploadedDocuments = await Promise.all(
         selectedFiles.map(async (file) => {
           const base64Data = await toBase64(file);
@@ -120,7 +119,7 @@ export const FileCase: React.FC = () => {
 
       <form onSubmit={handleSubmit} className="bg-white p-8 rounded-xl shadow-sm border border-slate-200 space-y-8">
         
-        {/* AI SUGGESTED EVIDENCE CHECKLIST UI */}
+        {/* AI SUGGESTED EVIDENCE CHECKLIST UI (Only shows if there is AI data) */}
         {formData.aiSuggestedEvidence && formData.aiSuggestedEvidence.length > 0 && (
           <div className="bg-blue-50 border border-blue-200 rounded-lg p-5">
             <h3 className="text-blue-900 font-semibold flex items-center gap-2 mb-3">
@@ -128,36 +127,13 @@ export const FileCase: React.FC = () => {
             </h3>
             <p className="text-sm text-blue-800 mb-2">
               Based on your chat, this incident falls under <strong>BNS Section {formData.bnsSection}</strong>. 
-              To avoid delays, please ensure you have the following documents ready to upload later:
+              To avoid delays, please ensure you have the following documents ready to upload in the section below:
             </p>
-            <ul className="list-disc pl-5 text-sm text-blue-700 space-y-1 mb-4">
+            <ul className="list-disc pl-5 text-sm text-blue-700 space-y-1 mb-2">
               {formData.aiSuggestedEvidence.map((doc: string, idx: number) => (
                 <li key={idx}>{doc}</li>
               ))}
             </ul>
-
-            {/* --- FILE UPLOAD SECTION --- */}
-            <div className="bg-white p-4 rounded-md border border-blue-200 mt-4">
-              <label className="block text-sm font-semibold text-blue-900 mb-2 flex items-center gap-2">
-                <UploadCloud size={16} /> Upload Required Evidence
-              </label>
-              <input 
-                type="file" 
-                multiple 
-                onChange={handleFileChange}
-                className="w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 cursor-pointer"
-              />
-              {selectedFiles.length > 0 && (
-                <div className="mt-3 text-xs text-slate-600">
-                  <p className="font-semibold mb-1">Files ready to be submitted to the vault:</p>
-                  <ul className="list-inside list-disc">
-                    {selectedFiles.map((f, i) => <li key={i}>{f.name}</li>)}
-                  </ul>
-                </div>
-              )}
-            </div>
-            {/* --------------------------------- */}
-
           </div>
         )}
 
@@ -182,7 +158,7 @@ export const FileCase: React.FC = () => {
                </select>
             </div>
             
-            {/* --- BNS SECTION INPUT FIELD --- */}
+            {/* BNS SECTION INPUT FIELD */}
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-1">Applicable Law (BNS Section)</label>
               <div className="relative">
@@ -219,7 +195,35 @@ export const FileCase: React.FC = () => {
           </div>
         </div>
 
-        {/* SECTION 2: PRIVACY & OPTIONS */}
+        {/* --- NEW SECTION: ALWAYS VISIBLE EVIDENCE UPLOAD --- */}
+        <div className="space-y-4 pt-4">
+          <h3 className="font-semibold text-slate-900 border-b pb-2 flex items-center gap-2">
+            <UploadCloud size={18} className="text-green-600"/> Evidence Vault Upload
+          </h3>
+          
+          <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
+            <label className="block text-sm font-medium text-slate-700 mb-3">
+              Attach Documents, Images, or PDFs securely to this case.
+            </label>
+            <input 
+              type="file" 
+              multiple 
+              onChange={handleFileChange}
+              className="w-full text-sm text-slate-500 file:mr-4 file:py-2.5 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 cursor-pointer border border-slate-200 p-2"
+            />
+            {selectedFiles.length > 0 && (
+              <div className="mt-4 p-4 bg-slate-50 rounded-lg border border-slate-200">
+                <p className="text-xs font-bold text-slate-700 uppercase mb-2">Files ready to submit ({selectedFiles.length})</p>
+                <ul className="list-inside list-disc text-sm text-slate-600 space-y-1">
+                  {selectedFiles.map((f, i) => <li key={i}>{f.name}</li>)}
+                </ul>
+              </div>
+            )}
+          </div>
+        </div>
+        {/* -------------------------------------------------- */}
+
+        {/* SECTION 3: PRIVACY & OPTIONS */}
         <div className="space-y-4 pt-4">
           <h3 className="font-semibold text-slate-900 border-b pb-2 flex items-center gap-2">
             <Shield size={18} className="text-purple-600"/> Privacy & Legal Options
@@ -227,7 +231,6 @@ export const FileCase: React.FC = () => {
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             
-            {/* OPTION 1: ANONYMOUS */}
             <label className="relative flex items-start p-4 border rounded-xl hover:bg-slate-50 cursor-pointer transition-colors group">
               <div className="flex items-center h-5">
                 <input name="isAnonymous" type="checkbox" onChange={handleChange} className="w-4 h-4 text-purple-600 border-gray-300 rounded focus:ring-purple-500" />
@@ -240,7 +243,6 @@ export const FileCase: React.FC = () => {
               </div>
             </label>
 
-            {/* OPTION 2: LEGAL AID */}
             <label className="relative flex items-start p-4 border rounded-xl hover:bg-slate-50 cursor-pointer transition-colors group">
               <div className="flex items-center h-5">
                 <input 
