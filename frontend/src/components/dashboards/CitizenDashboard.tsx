@@ -6,6 +6,7 @@ import {
   FileText, Activity, CheckCircle, Clock, 
   AlertTriangle, EyeOff, ChevronRight, Shield, AlertCircle, Bell, X, Scale, Download
 } from 'lucide-react';
+import { Notifications } from '../Notifications'; // <--- IMPORTED NOTIFICATIONS
 
 const getApiUrl = () => {
   const base = import.meta.env.VITE_API_URL || 'http://localhost:5000';
@@ -233,12 +234,19 @@ export const CitizenDashboard: React.FC = () => {
           <p className="text-slate-500">Track your legal cases and statutory deadlines.</p>
         </div>
         
-        <button 
-          onClick={handleSOS}
-          className="bg-red-600 hover:bg-red-700 text-white px-6 py-3 rounded-full font-bold shadow-lg shadow-red-500/30 flex items-center gap-2 animate-pulse transition-transform active:scale-95"
-        >
-          <AlertTriangle size={24} /> SOS EMERGENCY
-        </button>
+        <div className="flex items-center gap-4">
+          {/* --- NEW: Notification Bell --- */}
+          <div className="bg-white p-2 rounded-full shadow-sm border border-slate-200">
+             <Notifications /> 
+          </div>
+
+          <button 
+            onClick={handleSOS}
+            className="bg-red-600 hover:bg-red-700 text-white px-6 py-3 rounded-full font-bold shadow-lg shadow-red-500/30 flex items-center gap-2 animate-pulse transition-transform active:scale-95"
+          >
+            <AlertTriangle size={24} /> SOS EMERGENCY
+          </button>
+        </div>
       </div>
 
       <div className="max-w-5xl mx-auto space-y-6">
