@@ -15,7 +15,7 @@ interface ChatbotMessage {
 }
 
 export const Chatbot: React.FC = () => {
-  const { token } = useAuth();
+  const { user, token } = useAuth();
   const navigate = useNavigate(); 
   const [isOpen, setIsOpen] = useState(false);
   const [messages, setMessages] = useState<ChatbotMessage[]>([]);
@@ -32,6 +32,44 @@ export const Chatbot: React.FC = () => {
     scrollToBottom();
   }, [messages]);
 
+  // ==========================================
+  // --- FOOLPROOF LOCAL STORAGE LOGIC ---
+  // ==========================================
+
+  // 1. ONLY LOAD chat history when user logs in
+  useEffect(() => {
+    if (user) {
+      // Safely grab the ID depending on your auth setup
+      const userId = user.userId || user._id || user.id || 'default'; 
+      const savedChat = localStorage.getItem(`chat_history_${userId}`);
+      
+      if (savedChat) {
+        try {
+          setMessages(JSON.parse(savedChat)); // Load their previous chat
+        } catch (e) {
+          console.error("Could not load chat history", e);
+          setMessages([]);
+        }
+      } else {
+        setMessages([]); // Start fresh if they have no history
+      }
+    } else {
+      // If no user is logged in (logout), clear the screen and close chat
+      setMessages([]);
+      setIsOpen(false);
+    }
+  }, [user]);
+
+  // 2. HELPER FUNCTION: Only save when an actual message happens
+  const saveMessagesToStorage = (updatedMessages: ChatbotMessage[]) => {
+    if (user) {
+      const userId = user.userId || user._id || user.id || 'default';
+      localStorage.setItem(`chat_history_${userId}`, JSON.stringify(updatedMessages));
+    }
+  };
+
+  // ==========================================
+
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!input.trim()) return;
@@ -44,7 +82,11 @@ export const Chatbot: React.FC = () => {
       text: input,
     };
 
-    setMessages((prev) => [...prev, userMessage]);
+    // --- FIX: Update state AND immediately save to localStorage ---
+    const newMessagesWithUser = [...messages, userMessage];
+    setMessages(newMessagesWithUser);
+    saveMessagesToStorage(newMessagesWithUser);
+
     setInput('');
     setLoading(true);
     setError('');
@@ -65,14 +107,10 @@ export const Chatbot: React.FC = () => {
 
       const data = await response.json();
       
-      // ==========================================
-      // --- NEW: SMART JSON PARSER ---
-      // ==========================================
       let displayText = data.message || data.response || '';
       let extractedBns = data.bnsSection;
       let extractedCategory = data.caseCategory;
       let extractedEvidence = data.requiredEvidence;
-      // CHANGE 1: Extract the drafted description
       let extractedDraft = data.draftedDescription; 
 
       const stringToParse = typeof data === 'string' ? data : displayText;
@@ -86,13 +124,11 @@ export const Chatbot: React.FC = () => {
           extractedBns = aiData.bnsSection;
           extractedCategory = aiData.caseCategory;
           extractedEvidence = aiData.requiredEvidence;
-          // CHANGE 2: Extract from the parsed string
           extractedDraft = aiData.draftedDescription; 
         } catch (parseError) {
           console.error("Could not parse AI JSON string:", parseError);
         }
       }
-      // ==========================================
 
       const botMessage: ChatbotMessage = {
         id: (Date.now() + 1).toString(),
@@ -101,12 +137,17 @@ export const Chatbot: React.FC = () => {
         bnsSection: extractedBns, 
         caseCategory: extractedCategory,
         requiredEvidence: extractedEvidence,
-        // CHANGE 3: Add it to the message object
         draftedDescription: extractedDraft,
         originalQuery: currentQuery
       };
 
-      setMessages((prev) => [...prev, botMessage]);
+      // --- FIX: Ensure we use the most recent state when the bot replies, then save it ---
+      setMessages((prev) => {
+        const finalMessages = [...prev, botMessage];
+        saveMessagesToStorage(finalMessages); 
+        return finalMessages;
+      });
+
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Error getting response');
     } finally {
@@ -163,7 +204,8 @@ export const Chatbot: React.FC = () => {
                   {msg.text}
                 </div>
 
-                {msg.type === 'bot' && msg.bnsSection && (
+                {/* --- STRICT ROLE CHECK --- */}
+                {user?.role === 'citizen' && msg.type === 'bot' && msg.bnsSection && msg.draftedDescription && (
                   <button 
                     onClick={() => {
                       setIsOpen(false);
@@ -172,7 +214,6 @@ export const Chatbot: React.FC = () => {
                           bnsSection: msg.bnsSection, 
                           type: msg.caseCategory, 
                           requiredEvidence: msg.requiredEvidence,
-                          // CHANGE 4: Prioritize the AI drafted description, if it fails, use the short query
                           description: msg.draftedDescription || msg.originalQuery 
                         } 
                       });

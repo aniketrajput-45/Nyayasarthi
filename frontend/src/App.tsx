@@ -11,8 +11,8 @@ import { LegalNotice } from './pages/LegalNotice';
 import { Cases } from './pages/Cases';
 import { Chat } from './pages/Chat';
 import { Analytics } from './pages/Analytics';
-import { Chatbot } from './components/Chatbot';
 import { CaseDetails } from './pages/CaseDetails';
+// Note: Chatbot import is removed from here
 
 function AppContent() {
   const location = useLocation();
@@ -54,6 +54,8 @@ function App() {
     <Router>
       <AuthProvider>
         <AppContent />
+          <Route path="/" element={<Navigate to="/dashboard" replace />} />
+        </Routes>
       </AuthProvider>
     </Router>
   );
