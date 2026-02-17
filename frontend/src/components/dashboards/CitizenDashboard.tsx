@@ -133,51 +133,92 @@ export const CitizenDashboard: React.FC = () => {
 
   const handleDownloadNotice = (notice: LegalNotice) => {
     const doc = new jsPDF();
-    const margin = 20;
+    const margin = 14;
     const pageW = doc.internal.pageSize.getWidth();
-    let y = margin;
+    const pageH = doc.internal.pageSize.getHeight();
+    const lineH = 4;
+    let y = 0;
 
-    const addSection = (title: string, content: string, isBold = false) => {
-      if (y > 270) { doc.addPage(); y = margin; }
-      doc.setFontSize(10);
+    const addBlockLabel = (label: string) => {
+      doc.setDrawColor(148, 163, 184);
+      doc.setLineWidth(0.25);
+      doc.line(margin, y, pageW - margin, y);
+      y += 3.5;
       doc.setFont('helvetica', 'bold');
-      doc.setTextColor(80, 80, 80);
-      doc.text(title, margin, y);
-      y += 6;
-      doc.setFont('helvetica', isBold ? 'bold' : 'normal');
-      doc.setFontSize(10);
-      doc.setTextColor(0, 0, 0);
-      const lines = doc.splitTextToSize(content || '—', pageW - 2 * margin);
-      doc.text(lines, margin, y);
-      y += lines.length * 5 + 4;
+      doc.setFontSize(7);
+      doc.setTextColor(100, 116, 139);
+      doc.text(label.toUpperCase(), margin, y);
+      y += 5;
     };
 
-    doc.setFontSize(18);
+    const addField = (label: string, value: string) => {
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(7);
+      doc.setTextColor(71, 85, 105);
+      doc.text(`${label}:`, margin, y);
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(9);
+      doc.setTextColor(15, 23, 42);
+      const lines = doc.splitTextToSize(value || '—', pageW - margin - 48);
+      doc.text(lines, margin, y + lineH);
+      y += lineH + lines.length * lineH + 3;
+    };
+
+    const addBody = (label: string, content: string) => {
+      addBlockLabel(label);
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(9);
+      doc.setTextColor(30, 41, 59);
+      const lines = doc.splitTextToSize(content || '—', pageW - 2 * margin);
+      doc.text(lines, margin, y);
+      y += lines.length * lineH + 5;
+    };
+
+    doc.setFillColor(30, 41, 59);
+    doc.rect(0, 0, pageW, 22, 'F');
+    doc.setTextColor(255, 255, 255);
     doc.setFont('helvetica', 'bold');
-    doc.text('LEGAL NOTICE', margin, y);
-    y += 10;
-    doc.setFontSize(10);
-    doc.setFont('helvetica', 'normal');
-    doc.text(`Notice #${notice.noticeNumber}`, margin, y);
-    if (notice.caseNumber) doc.text(`Case: ${notice.caseNumber}`, margin + 60, y);
-    y += 10;
-
-    addSection('Issued By', `${notice.issuerRole.charAt(0).toUpperCase() + notice.issuerRole.slice(1)}: ${notice.issuerName}${notice.issuedBy?.email ? ` (${notice.issuedBy.email})` : ''}`);
-    addSection('Notice Type', (notice.noticeType || '').replace(/_/g, ' '));
-    addSection('Urgency', (notice.urgency || '').toUpperCase());
-    addSection('Notice Date', new Date(notice.noticeDate).toLocaleDateString());
-    addSection('Subject', notice.subject || '');
-    addSection('Incident Title', notice.incidentTitle || '');
-    addSection('Case Type', (notice.caseType || '').toUpperCase());
-    addSection('Location', notice.location || '');
-    addSection('Date of Incident', notice.dateOfIncident ? new Date(notice.dateOfIncident).toLocaleDateString() : '');
-    addSection('Description', notice.description || '');
-
+    doc.setFontSize(14);
+    doc.text('LEGAL NOTICE', margin, 12);
     doc.setFontSize(8);
-    doc.setTextColor(120, 120, 120);
-    doc.text(`Generated from Citizen Dashboard on ${new Date().toLocaleString()}`, margin, doc.internal.pageSize.getHeight() - 10);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(251, 191, 36);
+    doc.text(`#${notice.noticeNumber}`, margin, 18);
+    doc.setTextColor(203, 213, 225);
+    if (notice.caseNumber) doc.text(`Case: ${notice.caseNumber}`, margin + 48, 18);
+    doc.setTextColor(0, 0, 0);
+    y = 28;
 
-    doc.save(`Legal-Notice-${notice.noticeNumber.replace(/\s/g, '-')}.pdf`);
+    addBlockLabel('Issued by');
+    addField('Authority', `${notice.issuerRole.charAt(0).toUpperCase() + notice.issuerRole.slice(1)} — ${notice.issuerName}`);
+    if (notice.issuedBy?.email) addField('Contact', notice.issuedBy.email);
+    y += 2;
+
+    addBlockLabel('Notice details');
+    addField('Notice type', (notice.noticeType || '').replace(/_/g, ' '));
+    addField('Urgency', (notice.urgency || '').toUpperCase());
+    addField('Notice date', new Date(notice.noticeDate).toLocaleDateString());
+    y += 2;
+
+    addBlockLabel('Case & incident');
+    if (notice.caseNumber) addField('Case no.', notice.caseNumber);
+    addField('Case type', (notice.caseType || '').toUpperCase());
+    addField('Location', notice.location || '');
+    addField('Incident date', notice.dateOfIncident ? new Date(notice.dateOfIncident).toLocaleDateString() : '—');
+    addField('Incident title', notice.incidentTitle || '—');
+    y += 2;
+
+    addBlockLabel('Subject');
+    addField('Subject', notice.subject || '—');
+    y += 2;
+
+    addBody('Description', notice.description || '');
+
+    doc.setFontSize(6);
+    doc.setTextColor(148, 163, 184);
+    doc.text(`Generated from Citizen Dashboard · ${new Date().toLocaleString()}`, margin, pageH - 6);
+
+    doc.save(`Legal-Notice-${(notice.noticeNumber || '').replace(/\s/g, '-')}.pdf`);
   };
 
   if (loading) return <div className="p-8 text-center">Loading your dashboard...</div>;

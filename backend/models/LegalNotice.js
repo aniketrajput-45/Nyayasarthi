@@ -4,7 +4,7 @@ const legalNoticeSchema = new mongoose.Schema({
   noticeNumber: {
     type: String,
     unique: true,
-    required: true,
+    // not required – auto-generated in pre('validate') from form submission
   },
   noticeType: {
     type: String,
@@ -114,13 +114,17 @@ const legalNoticeSchema = new mongoose.Schema({
   ],
 }, { timestamps: true });
 
-// Generate notice number before saving (only if not already set by route)
-legalNoticeSchema.pre('save', async function(next) {
+// Generate notice number before validation (Mongoose validates before pre('save'), so we need pre('validate'))
+legalNoticeSchema.pre('validate', async function(next) {
   if (!this.noticeNumber) {
     const count = await mongoose.model('LegalNotice').countDocuments();
     const year = new Date().getFullYear();
     this.noticeNumber = `NOTICE-${year}-${(count + 1).toString().padStart(4, '0')}`;
   }
+  next();
+});
+
+legalNoticeSchema.pre('save', async function(next) {
   // Initialize timeline if empty (only add updatedBy if issuedBy exists)
   if (!this.timeline || this.timeline.length === 0) {
     this.timeline = [{
