@@ -4,7 +4,7 @@ import { verifyToken } from '../middleware/auth.js';
 import Case from '../models/Case.js';
 
 const router = express.Router();
-const GEMINI_API_URL = 'https://generativelanguage.googleapis.com/v1/models/gemini-2.5-flash:generateContent';
+const GEMINI_API_URL = 'https://generativelanguage.googleapis.com/v1/models/gemini-2.5-flash-lite:generateContent';
 
 router.post('/ask', verifyToken, async (req, res) => {
   const { query } = req.body;
