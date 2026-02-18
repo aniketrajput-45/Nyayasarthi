@@ -1,6 +1,43 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Scale, Shield, Gavel, Users, MessageSquare, BarChart3, ChevronRight } from 'lucide-react';
+import { Shield, Gavel, Users, MessageSquare, ChevronRight, LucideIcon } from 'lucide-react';
+
+function RoleBlock({
+  src,
+  label,
+  alt,
+  heightClass,
+  Icon,
+  gradient,
+}: {
+  src: string;
+  label: string;
+  alt: string;
+  heightClass: string;
+  Icon: LucideIcon;
+  gradient: string;
+}) {
+  const [imgError, setImgError] = useState(false);
+  return (
+    <div className={`${heightClass} rounded-2xl overflow-hidden shadow-xl border border-slate-200 relative group`}>
+      {!imgError ? (
+        <img
+          src={src}
+          alt={alt}
+          className="w-full h-full object-cover object-center"
+          onError={() => setImgError(true)}
+        />
+      ) : (
+        <div className={`w-full h-full ${gradient} flex items-center justify-center`}>
+          <Icon className="w-20 h-20 text-white/90" strokeWidth={1.5} />
+        </div>
+      )}
+      <div className="absolute inset-0 bg-slate-900/40 flex items-end p-4">
+        <span className="text-white font-bold text-lg tracking-wide">{label}</span>
+      </div>
+    </div>
+  );
+}
 
 export const Landing: React.FC = () => {
   const navigate = useNavigate();
@@ -9,8 +46,8 @@ export const Landing: React.FC = () => {
     <div className="min-h-screen bg-white">
       {/* Navigation */}
       <nav className="flex items-center justify-between px-8 py-6 bg-white border-b border-slate-100 sticky top-0 z-50">
-        <div className="flex items-center gap-2">
-          <Scale className="text-indigo-600" size={32} />
+        <div className="flex items-center gap-3">
+          <img src="/nyayasarthi-logo.png" alt="Nayayasarthi Court of Justice" className="h-24 w-auto object-contain" />
           <span className="text-2xl font-bold text-slate-900 tracking-tight">Nyayasarthi</span>
         </div>
         <div className="flex gap-4">
@@ -108,16 +145,42 @@ export const Landing: React.FC = () => {
       <section className="py-24 px-8">
         <div className="max-w-7xl mx-auto grid lg:grid-cols-2 gap-16 items-center">
           <div className="grid grid-cols-2 gap-4">
+            {/* Top-Left: Judge | Top-Right: Lawyer | Bottom-Left: Police | Bottom-Right: Citizen */}
             <div className="space-y-4">
-              <div className="h-48 bg-indigo-600 rounded-2xl flex items-end p-6 text-white font-bold text-xl shadow-lg">AI Support</div>
-              <div className="h-64 bg-slate-100 rounded-2xl"></div>
+              <RoleBlock
+                src="https://unsplash.com/photos/e11Oa3kvx4c/download?force=true&w=800"
+                label="Judge"
+                alt="Judge - Justice"
+                heightClass="h-48"
+                Icon={Gavel}
+                gradient="bg-gradient-to-br from-amber-800 to-slate-800"
+              />
+              <RoleBlock
+                src="/police-role.png"
+                label="Police"
+                alt="Police - Law enforcement"
+                heightClass="h-64"
+                Icon={Shield}
+                gradient="bg-gradient-to-br from-slate-700 to-slate-900"
+              />
             </div>
             <div className="space-y-4 pt-8">
-              <div className="h-64 bg-slate-900 rounded-2xl p-6 text-white flex flex-col justify-between">
-                <BarChart3 size={32} />
-                <span className="font-bold">Advanced Analytics</span>
-              </div>
-              <div className="h-48 bg-indigo-100 rounded-2xl"></div>
+              <RoleBlock
+                src="https://unsplash.com/photos/zeH-ljawHtg/download?force=true&w=800"
+                label="Lawyer"
+                alt="Lawyer - Legal counsel"
+                heightClass="h-64"
+                Icon={MessageSquare}
+                gradient="bg-gradient-to-br from-indigo-800 to-slate-800"
+              />
+              <RoleBlock
+                src="https://unsplash.com/photos/ABGaVhJxwDQ/download?force=true&w=800"
+                label="Citizen"
+                alt="Citizen - Justice for all"
+                heightClass="h-48"
+                Icon={Users}
+                gradient="bg-gradient-to-br from-teal-800 to-slate-800"
+              />
             </div>
           </div>
           <div className="space-y-6">
@@ -142,10 +205,10 @@ export const Landing: React.FC = () => {
       {/* Footer */}
       <footer className="bg-slate-900 text-slate-400 py-12 px-8 border-t border-slate-800">
         <div className="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center gap-8">
-          <div className="flex items-center gap-2 text-white">
-            <Scale size={24} />
+          {/* <div className="flex items-center gap-3 text-white">
+            <img src="/nyayasarthi-logo.png" alt="Nayayasarthi Court of Justice" className="h-16 w-auto object-contain brightness-0 invert opacity-90" />
             <span className="text-xl font-bold">Nyayasarthi</span>
-          </div>
+          </div> */}
           <p className="text-sm">© 2026 Justice Hub. Making legal services accessible to every citizen.</p>
           <div className="flex gap-6">
             <a href="#" className="hover:text-white transition">Privacy Policy</a>
