@@ -18,9 +18,6 @@ interface AuthContextType {
 
 export const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-const getApiUrl = () =>
-  import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
-
 export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(() => {
     const stored = localStorage.getItem('user');
@@ -32,57 +29,68 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   });
 
   const login = useCallback(async (email: string, password: string) => {
-    try {
-      const response = await fetch(`${getApiUrl()}/auth/login`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password }),
-      });
+    // 1. Get our "database" of users from local storage
+    const storedUsers = localStorage.getItem('app_users');
+    const allUsers = storedUsers ? JSON.parse(storedUsers) : [];
 
-      if (!response.ok) {
-        const error = await response.json().catch(() => ({ message: 'Login failed' }));
-        throw new Error(error.message);
-      }
+    // 2. Find a user that matches the email and password
+    const foundUser = allUsers.find((u: any) => u.email === email && u.password === password);
 
-      const data = await response.json();
-      setUser(data.user);
-      setToken(data.token);
-      localStorage.setItem('user', JSON.stringify(data.user));
-      localStorage.setItem('token', data.token);
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : '';
-      if (msg === 'Failed to fetch' || msg.includes('fetch') || msg.includes('NetworkError')) {
-        throw new Error('Cannot reach server. Make sure the backend is running (e.g. npm start in backend folder).');
-      }
-      throw err;
+    if (!foundUser) {
+      throw new Error('Invalid email or password');
     }
+
+    // 3. Remove the password before saving to state
+    const { password: _, ...userWithoutPassword } = foundUser;
+    
+    // 4. Create a fake token to keep the app happy
+    const fakeToken = 'mock-jwt-token-' + Date.now();
+
+    // 5. Log the user in
+    setUser(userWithoutPassword as User);
+    setToken(fakeToken);
+    localStorage.setItem('user', JSON.stringify(userWithoutPassword));
+    localStorage.setItem('token', fakeToken);
+    
+    // Very Important: Set studentId for your profile and chat pages!
+    localStorage.setItem('studentId', foundUser._id);
   }, []);
 
   const register = useCallback(async (email: string, password: string, fullName: string, role: string) => {
-    try {
-      const response = await fetch(`${getApiUrl()}/auth/register`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password, fullName, role }),
-      });
+    // 1. Get our "database" of users from local storage
+    const storedUsers = localStorage.getItem('app_users');
+    const allUsers = storedUsers ? JSON.parse(storedUsers) : [];
 
-      if (!response.ok) {
-        const error = await response.json().catch(() => ({ message: 'Registration failed' }));
-        throw new Error(error.message);
-      }
-
-      const data = await response.json();
-      setUser(data.user);
-      setToken(data.token);
-      localStorage.setItem('user', JSON.stringify(data.user));
-      localStorage.setItem('token', data.token);
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : '';
-      if (msg === 'Failed to fetch' || msg.includes('fetch') || msg.includes('NetworkError')) {
-        throw new Error('Cannot reach server. Make sure the backend is running (e.g. npm start in backend folder).');
-      }
-      throw err;
+    // 2. Check if email is already taken
+    const emailExists = allUsers.some((u: any) => u.email === email);
+    if (emailExists) {
+      throw new Error('An account with this email already exists.');
     }
+
+    // 3. Create a new user object
+    const newUser = {
+      _id: 'user_' + Date.now(),
+      email,
+      password,
+      fullName,
+      role: role as 'citizen' | 'police' | 'lawyer' | 'judge'
+    };
+
+    // 4. Save to our local storage "database" array
+    allUsers.push(newUser);
+    localStorage.setItem('app_users', JSON.stringify(allUsers));
+
+    // 5. Automatically log the new user in
+    const { password: _, ...userWithoutPassword } = newUser;
+    const fakeToken = 'mock-jwt-token-' + Date.now();
+
+    setUser(userWithoutPassword as User);
+    setToken(fakeToken);
+    localStorage.setItem('user', JSON.stringify(userWithoutPassword));
+    localStorage.setItem('token', fakeToken);
+    
+    // Very Important: Set studentId for your profile and chat pages!
+    localStorage.setItem('studentId', newUser._id);
   }, []);
 
   const logout = useCallback(() => {
@@ -90,6 +98,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     setToken(null);
     localStorage.removeItem('user');
     localStorage.removeItem('token');
+    localStorage.removeItem('studentId'); // Clear this out on logout
   }, []);
 
   const value: AuthContextType = {
