@@ -12,17 +12,21 @@ import { Cases } from './pages/Cases';
 import { Chat } from './pages/Chat';
 import { Analytics } from './pages/Analytics';
 import { CaseDetails } from './pages/CaseDetails';
+import { Landing } from './pages/Landing'; // Ensure this component is created in /pages
 
 function App() {
   return (
     <Router>
       <AuthProvider>
         <Routes>
-          {/* Public Routes - No Layout here, so NO Chatbot will appear */}
+          {/* Public Root Route - Professional Landing Page */}
+          <Route path="/" element={<Landing />} />
+
+          {/* Authentication Routes */}
           <Route path="/login" element={<Login />} />
           <Route path="/register" element={<Register />} />
 
-          {/* Protected Routes - These are wrapped in Layout, so the Chatbot WILL appear */}
+          {/* Protected Routes - Wrapped in Layout and ProtectedRoute */}
           <Route
             element={
               <ProtectedRoute>
@@ -40,8 +44,8 @@ function App() {
             <Route path="/analytics" element={<Analytics />} />
           </Route>
 
-          {/* Fallback Route */}
-          <Route path="/" element={<Navigate to="/dashboard" replace />} />
+          {/* Fallback Route - Redirects unknown paths to the Landing page */}
+          <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </AuthProvider>
     </Router>
