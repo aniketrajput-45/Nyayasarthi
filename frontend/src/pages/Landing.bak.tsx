@@ -53,18 +53,18 @@ export const Landing: React.FC = () => {
   }, [isHovered]);
 
   return (
-    <div className="min-h-screen bg-[#070b14] font-sans overflow-x-hidden selection:bg-orange-500/30 text-slate-300">
+    <div className="min-h-screen bg-[#e8e9eb] font-sans overflow-x-hidden selection:bg-orange-500/30">
       {/* Hero Container */}
       <div className="relative min-h-screen flex flex-col">
         {/* Lady Justice Background Image */}
-        <div className="absolute top-0 right-0 w-[120%] sm:w-full lg:w-[65%] h-full z-0 pointer-events-none opacity-90 animate-float overflow-hidden">
+        <div className="absolute top-0 right-[-10%] sm:right-0 w-[120%] sm:w-full lg:w-[65%] h-[60%] sm:h-[80%] lg:h-[110%] bottom-[-10%] z-0 pointer-events-none opacity-90 lg:opacity-100 animate-float">
           <div
-            className="absolute inset-0 bg-contain bg-no-repeat bg-right-bottom sm:bg-right"
+            className="absolute inset-0 bg-contain bg-no-repeat bg-[center_top] lg:bg-[center_right] lg:mr-10"
             style={{
-              backgroundImage: "url('/intense-cyber-justice.png')",
-              mixBlendMode: 'lighten',
-              WebkitMaskImage: 'radial-gradient(ellipse at 80% 50%, black 0%, transparent 75%)',
-              maskImage: 'radial-gradient(ellipse at 80% 50%, black 0%, transparent 75%)'
+              backgroundImage: "url('/futuristic-classic.png')",
+              mixBlendMode: 'multiply',
+              WebkitMaskImage: 'linear-gradient(to right, transparent, black 15%, black 85%, transparent)',
+              maskImage: 'linear-gradient(to right, transparent, black 15%, black 85%, transparent)'
             }}
           ></div>
         </div>
@@ -78,105 +78,101 @@ export const Landing: React.FC = () => {
               <div className="w-[12px] h-[12px] bg-orange-400 rounded-sm"></div>
               <div className="w-[12px] h-[12px] bg-transparent rounded-sm"></div>
             </div>
-            <span className="text-xl font-bold text-white tracking-tight">Nyayasarthi Law</span>
+            <span className="text-xl font-bold text-slate-900 tracking-tight">Nyayasarthi Law</span>
           </div>
 
-          <div className="hidden lg:flex items-center gap-8 text-sm font-medium text-slate-400 bg-white/5 backdrop-blur-md px-8 py-3 rounded-full border border-white/10 shadow-sm">
-            <a href="#" className="hover:text-white transition">Home</a>
-            <a href="#" className="hover:text-white transition">About</a>
-            <div className="flex items-center gap-1 cursor-pointer hover:text-white transition">
+          <div className="hidden lg:flex items-center gap-8 text-sm font-medium text-slate-700 bg-white/40 backdrop-blur-md px-8 py-3 rounded-full border border-white/50 shadow-sm">
+            <a href="#" className="hover:text-black transition">Home</a>
+            <a href="#" className="hover:text-black transition">About</a>
+            <div className="flex items-center gap-1 cursor-pointer hover:text-black transition">
               Services <ChevronDown size={14} />
             </div>
-            <a href="#" className="hover:text-white transition">Solution</a>
-            <div className="flex items-center gap-1 cursor-pointer hover:text-white transition ml-2 pl-4 border-l border-white/10">
+            <a href="#" className="hover:text-black transition">Solution</a>
+            <div className="flex items-center gap-1 cursor-pointer hover:text-black transition ml-2 pl-4 border-l border-slate-300">
               <Globe size={16} className="text-slate-500" /> English <ChevronDown size={14} />
             </div>
           </div>
 
-          <div className="flex items-center gap-4">
-            <button
-              onClick={() => navigate('/login')}
-              className="text-white px-5 py-2.5 rounded-xl text-sm font-medium hover:bg-white/10 transition border border-white/10"
-            >
-              Sign In
-            </button>
-            <button
-              onClick={() => navigate('/register')}
-              className="bg-white text-slate-950 px-6 py-2.5 rounded-xl text-sm font-bold hover:bg-slate-200 transition shadow-[0_0_20px_rgba(255,255,255,0.1)]"
-            >
-              Sign Up
-            </button>
-          </div>
+          <button
+            onClick={() => navigate('/login')}
+            className="bg-[#0a0a0a] text-white px-7 py-3 rounded-xl text-sm font-medium hover:bg-slate-800 transition shadow-xl"
+          >
+            Login / Register
+          </button>
         </nav>
 
         {/* Hero Content */}
         <main className="relative z-10 flex-1 w-full max-w-[1440px] mx-auto px-6 lg:px-12 pt-12 pb-24 flex flex-col justify-center">
           <div className="max-w-3xl">
-            <h1 className="text-[3.5rem] sm:text-[4.5rem] lg:text-[5.5rem] xl:text-[6.5rem] leading-[0.95] font-black tracking-tighter uppercase relative z-20">
-              <span className="text-slate-400/90">Solving Legal</span> <br />
-              <span className="text-slate-600/90">Matters With</span> <br />
-              <span className="text-white shadow-sm">Confidence</span>
+            <h1 className="text-[3.5rem] sm:text-[4.5rem] lg:text-[5.5rem] xl:text-[6.5rem] leading-[0.95] font-black text-slate-800 tracking-tighter uppercase relative z-20 mix-blend-color-burn">
+              <span className="text-slate-600/90">Solving Legal</span> <br />
+              <span className="text-slate-700/90">Matters With</span> <br />
+              <span className="text-slate-900">Confidence</span>
             </h1>
-            <p className="mt-8 text-slate-400 text-lg sm:text-xl max-w-sm leading-relaxed font-medium relative z-20 mb-10">
+            <p className="mt-8 text-slate-600 text-lg sm:text-xl max-w-sm leading-relaxed font-medium relative z-20">
               A Dedicated Legal Team Committed to Protecting Your Rights and Securing Your Future
             </p>
 
-            {/* Repositioned Chart Card */}
-            {/* <div className="w-[360px] bg-slate-900/40 backdrop-blur-2xl border border-white/5 p-7 rounded-3xl shadow-[0_8px_30px_rgb(0,0,0,0.3)] relative z-20">
-              <div className="flex items-center justify-between mb-8">
-                <h3 className="font-medium text-white text-[15px]">Case Closure Statistics</h3>
-                <button className="bg-slate-800 px-3 py-1.5 rounded-full text-[11px] font-semibold flex items-center gap-1.5 text-slate-300 shadow-sm border border-white/10 hover:bg-slate-700 transition">
-                  Yearly <ChevronDown size={14} />
-                </button>
-              </div>
-              <div className="flex items-end gap-[10px] h-32">
-                {[30, 40, 60, 50, 40, 55, 80].map((val, i) => (
-                  <div key={i} className="flex-1 flex flex-col items-center gap-3 group cursor-pointer relative h-full justify-end">
-                    { }
-                    <div className="absolute bottom-[calc(100%-10px)] mb-3 opacity-0 group-hover:opacity-100 transition-all duration-300 transform translate-y-2 group-hover:translate-y-0 text-[11px] font-bold text-orange-500 bg-white/90 backdrop-blur-sm px-2 py-1 rounded-md shadow-sm z-10 whitespace-nowrap">
-                      {val}k
-                    </div>
-                    <div className="w-full bg-slate-800 rounded-t-sm rounded-b-[4px] relative grow-0 transition-all duration-300 group-hover:bg-indigo-500 group-hover:shadow-[0_0_20px_rgba(99,102,241,0.4)]" style={{ height: `${val}%` }}></div>
-                    <span className="text-[11px] text-slate-500 font-medium tracking-wide transition-colors group-hover:text-white">
-                      {['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul'][i]}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </div> */}
+
           </div>
 
           {/* Desktop Overlay Elements */}
           <div className="hidden lg:block">
             {/* Top Right: 28K */}
             {/* <div className="absolute top-16 right-16 text-right">
-              <div className="text-[4rem] leading-none font-light text-white mb-2">28K</div>
+              <div className="text-[4rem] leading-none font-light text-slate-800 mb-2">28K</div>
               <div className="flex items-center justify-end gap-3 mt-4">
                 <div className="flex -space-x-4">
-                  <img className="w-12 h-12 rounded-full border-2 border-[#020617] object-cover relative z-30" src="https://i.pravatar.cc/100?img=1" alt="Avatar" />
-                  <img className="w-12 h-12 rounded-full border-2 border-[#020617] object-cover relative z-20" src="https://i.pravatar.cc/100?img=5" alt="Avatar" />
-                  <img className="w-12 h-12 rounded-full border-2 border-[#020617] object-cover relative z-10" src="https://i.pravatar.cc/100?img=3" alt="Avatar" />
+                  <img className="w-12 h-12 rounded-full border-2 border-[#e8e9eb] object-cover relative z-30" src="https://i.pravatar.cc/100?img=1" alt="Avatar" />
+                  <img className="w-12 h-12 rounded-full border-2 border-[#e8e9eb] object-cover relative z-20" src="https://i.pravatar.cc/100?img=5" alt="Avatar" />
+                  <img className="w-12 h-12 rounded-full border-2 border-[#e8e9eb] object-cover relative z-10" src="https://i.pravatar.cc/100?img=3" alt="Avatar" />
                 </div>
-                <button className="w-12 h-12 bg-slate-800 rounded-full flex items-center justify-center shadow-lg hover:bg-slate-700 transition border border-white/10 relative z-0">
-                  <ArrowUpRight size={20} className="text-white" />
+                <button className="w-12 h-12 bg-white rounded-full flex items-center justify-center shadow-lg hover:bg-slate-50 transition border border-white/80 relative z-0">
+                  <ArrowUpRight size={20} className="text-slate-800" />
                 </button>
               </div>
-              <p className="text-sm text-slate-400 mt-4 max-w-[180px] ml-auto leading-snug font-medium">
+              <p className="text-sm text-slate-500 mt-4 max-w-[180px] ml-auto leading-snug font-medium">
                 Partner with us as we protect your rights
               </p>
             </div> */}
 
             {/* Bottom Left Card */}
-            <div className="absolute bottom-8 left-12 w-[340px] bg-slate-900/60 backdrop-blur-2xl border border-white/10 p-4 rounded-3xl flex items-center gap-5 shadow-[0_8px_30px_rgb(0,0,0,0.2)]">
-              <div className="w-24 h-24 bg-slate-800 rounded-2xl overflow-hidden relative shrink-0">
+            <div className="absolute bottom-12 left-12 w-[340px] bg-white/40 backdrop-blur-2xl border border-white/60 p-4 rounded-3xl flex items-center gap-5 shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
+              <div className="w-24 h-24 bg-slate-200 rounded-2xl overflow-hidden relative shrink-0">
                 <img src="https://images.unsplash.com/photo-1560250097-0b93528c311a?auto=format&fit=crop&q=80&w=200" alt="Lawyer" className="w-full h-full object-cover" />
-                <div className="absolute top-1.5 right-1.5 bg-slate-800 p-1 rounded-full text-white shadow-md">
+                <div className="absolute top-1.5 right-1.5 bg-white p-1 rounded-full text-slate-800 shadow-md">
                   <ArrowUpRight size={14} />
                 </div>
               </div>
               <div>
-                <h4 className="font-bold text-white text-[15px] leading-tight tracking-wide uppercase">PROTECTING EVERY <br /> DEAL YOU MAKE</h4>
-                <a href="#" className="text-xs font-bold text-slate-400 tracking-wider underline mt-4 inline-block hover:text-orange-400 transition uppercase">Get Started</a>
+                <h4 className="font-bold text-slate-800 text-[15px] leading-tight tracking-wide">PROTECTING EVERY <br /> DEAL YOU MAKE</h4>
+                <a href="#" className="text-xs font-bold text-slate-900 tracking-wider underline mt-4 inline-block hover:text-orange-600 transition uppercase">Get Started</a>
+              </div>
+            </div>
+
+
+
+            {/* Bottom Right Chart Card */}
+            <div className="absolute bottom-12 right-16 w-[360px] bg-white/60 backdrop-blur-2xl border border-white/70 p-7 rounded-3xl shadow-[0_8px_30px_rgb(0,0,0,0.06)] animate-float z-30 pointer-events-auto">
+              <div className="flex items-center justify-between mb-8">
+                <h3 className="font-medium text-slate-800 text-[15px]">Case Closure Statistics</h3>
+                <button className="bg-white px-3 py-1.5 rounded-full text-[11px] font-semibold flex items-center gap-1.5 text-slate-600 shadow-sm border border-slate-100 hover:bg-slate-50 transition">
+                  Yearly <ChevronDown size={14} />
+                </button>
+              </div>
+              <div className="flex items-end gap-[10px] h-32">
+                {[30, 40, 60, 50, 40, 55, 80].map((val, i) => (
+                  <div key={i} className="flex-1 flex flex-col items-center gap-3 group cursor-pointer relative h-full justify-end">
+                    {/* Floating Tooltip */}
+                    <div className="absolute bottom-[calc(100%-10px)] mb-3 opacity-0 group-hover:opacity-100 transition-all duration-300 transform translate-y-2 group-hover:translate-y-0 text-[11px] font-bold text-orange-500 bg-white/90 backdrop-blur-sm px-2 py-1 rounded-md shadow-sm z-10 whitespace-nowrap">
+                      {val}k
+                    </div>
+                    <div className="w-full bg-[#cbd5e1] rounded-t-sm rounded-b-[4px] relative grow-0 transition-all duration-300 group-hover:bg-[#4a4a4a] group-hover:shadow-lg" style={{ height: `${val}%` }}></div>
+                    <span className="text-[11px] text-slate-500 font-medium tracking-wide transition-colors group-hover:text-slate-900">
+                      {['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul'][i]}
+                    </span>
+                  </div>
+                ))}
               </div>
             </div>
           </div>
@@ -184,7 +180,7 @@ export const Landing: React.FC = () => {
       </div>
 
       {/* Stakeholder Roles */}
-      <section className="bg-[#070b14] py-32 relative z-20 overflow-hidden">
+      <section className="bg-slate-900 py-32 relative z-20 overflow-hidden">
         {/* Subtle IT-standard dark background image */}
         <div
           className="absolute inset-0 z-0 opacity-20 bg-cover bg-center pointer-events-none"
@@ -221,8 +217,8 @@ export const Landing: React.FC = () => {
                 <div
                   key={item.role}
                   className={`w-[320px] mx-[16px] shrink-0 p-10 rounded-[2rem] border transition-all duration-1000 transform cursor-pointer relative group ${isActive
-                    ? 'bg-gradient-to-b from-indigo-900/80 to-slate-900 shadow-[0_0_60px_rgba(79,70,229,0.4)] border-indigo-500 scale-110 z-10 opacity-100'
-                    : 'bg-slate-800/40 border-slate-700/50 scale-90 z-0 opacity-40 hover:opacity-70'
+                      ? 'bg-gradient-to-b from-indigo-900/80 to-slate-900 shadow-[0_0_60px_rgba(79,70,229,0.4)] border-indigo-500 scale-110 z-10 opacity-100'
+                      : 'bg-slate-800/40 border-slate-700/50 scale-90 z-0 opacity-40 hover:opacity-70'
                     }`}
                   onClick={() => setActivePillar(index)}
                 >
@@ -242,7 +238,7 @@ export const Landing: React.FC = () => {
       </section>
 
       {/* Feature Section */}
-      <section className="py-24 px-8 bg-[#070b14]">
+      <section className="py-24 px-8">
         <div className="max-w-7xl mx-auto grid lg:grid-cols-2 gap-16 items-center">
           <div className="grid grid-cols-2 gap-4">
             {/* Top-Left: Judge | Top-Right: Lawyer | Bottom-Left: Police | Bottom-Right: Citizen */}
@@ -284,16 +280,16 @@ export const Landing: React.FC = () => {
             </div>
           </div>
           <div className="space-y-6">
-            <h2 className="text-4xl font-bold text-white italic">"The power of law, at your fingertips."</h2>
-            <p className="text-lg text-slate-400">
+            <h2 className="text-4xl font-bold text-slate-900 italic">"The power of law, at your fingertips."</h2>
+            <p className="text-lg text-slate-600">
               Our platform bridges the gap between technology and the legal system.
               Whether it's managing complex case details or using our integrated chatbot for guidance,
               we ensure transparency and efficiency.
             </p>
             <ul className="space-y-4">
               {['Digital Case Filing', 'Real-time Notifications', 'Secure Chat System', 'Legal Notice Generator'].map((f) => (
-                <li key={f} className="flex items-center gap-3 text-slate-300 font-medium">
-                  <div className="w-5 h-5 rounded-full bg-green-900/30 text-green-400 flex items-center justify-center">✓</div>
+                <li key={f} className="flex items-center gap-3 text-slate-700 font-medium">
+                  <div className="w-5 h-5 rounded-full bg-green-100 text-green-600 flex items-center justify-center">✓</div>
                   {f}
                 </li>
               ))}
@@ -303,7 +299,7 @@ export const Landing: React.FC = () => {
       </section>
 
       {/* Footer */}
-      <footer className="bg-[#050810] text-slate-400 py-12 px-8 border-t border-white/5">
+      <footer className="bg-slate-900 text-slate-400 py-12 px-8 border-t border-slate-800">
         <div className="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center gap-8">
           {/* <div className="flex items-center gap-3 text-white">
             <img src="/nyayasarthi-logo.png" alt="Nayayasarthi Court of Justice" className="h-16 w-auto object-contain brightness-0 invert opacity-90" />
