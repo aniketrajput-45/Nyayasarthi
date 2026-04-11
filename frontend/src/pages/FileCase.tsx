@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../hooks/useAuth';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { Shield, EyeOff, Users, FileText, MapPin, Calendar, Info, CheckCircle, BookOpen, UploadCloud } from 'lucide-react';
+import { Shield, EyeOff, Users, FileText, MapPin, Calendar, Info, CheckCircle, BookOpen, UploadCloud, MousePointer2 } from 'lucide-react';
+import { VisualTriage } from '../components/VisualTriage';
 
 export const FileCase: React.FC = () => {
   const { token } = useAuth();
@@ -10,12 +11,13 @@ export const FileCase: React.FC = () => {
   const prefillData = location.state as any; 
 
   const [loading, setLoading] = useState(false);
+  const [showTriage, setShowTriage] = useState(!prefillData);
   
   // State to hold selected files for upload
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   
   const [formData, setFormData] = useState({
-    title: '',
+    title: prefillData?.title || '',
     description: prefillData?.description || '', 
     type: prefillData?.type || 'civil',          
     location: '',
@@ -26,6 +28,15 @@ export const FileCase: React.FC = () => {
     bnsSection: prefillData?.bnsSection || '',                  
     aiSuggestedEvidence: prefillData?.requiredEvidence || []    
   });
+
+  const handleTriageSelect = (category: string, title: string) => {
+    setFormData(prev => ({
+      ...prev,
+      type: category === 'commercial' ? 'corporate' : category === 'family' ? 'civil' : category === 'other' ? 'civil' : category,
+      title: `${title}: `
+    }));
+    setShowTriage(false);
+  };
 
   // This ensures the form updates with new AI data even if the page was already open
   useEffect(() => {
@@ -119,6 +130,28 @@ export const FileCase: React.FC = () => {
 
       <form onSubmit={handleSubmit} className="bg-white p-8 rounded-xl shadow-sm border border-slate-200 space-y-8">
         
+        {/* SECTION 0: VISUAL TRIAGE */}
+        {showTriage ? (
+          <div className="space-y-6">
+            <h3 className="font-semibold text-slate-900 border-b pb-2 flex items-center gap-2">
+              <MousePointer2 size={18} className="text-blue-600"/> Select Incident Type
+            </h3>
+            <VisualTriage onSelect={handleTriageSelect} />
+            <div className="p-4 bg-slate-50 rounded-lg border border-slate-200 flex items-start gap-3">
+              <Info size={18} className="text-slate-400 mt-0.5" />
+              <p className="text-xs text-slate-500 italic">Choosing a category helps our AI suggest the correct BNS sections and evidence required for your specific case.</p>
+            </div>
+          </div>
+        ) : (
+          <button 
+            type="button" 
+            onClick={() => setShowTriage(true)}
+            className="text-xs font-bold text-blue-600 hover:text-blue-700 flex items-center gap-1"
+          >
+            &larr; Re-select Incident Category
+          </button>
+        )}
+
         {/* AI SUGGESTED EVIDENCE CHECKLIST UI (Only shows if there is AI data) */}
         {formData.aiSuggestedEvidence && formData.aiSuggestedEvidence.length > 0 && (
           <div className="bg-blue-50 border border-blue-200 rounded-lg p-5">

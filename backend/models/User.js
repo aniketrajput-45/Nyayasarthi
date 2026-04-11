@@ -30,6 +30,13 @@ const userSchema = new mongoose.Schema({
     type: Number,
     default: 0,
   },
+  documentLocker: [
+    {
+      fileName: String,
+      fileUrl: String,
+      uploadedAt: { type: Date, default: Date.now },
+    },
+  ],
   createdAt: {
     type: Date,
     default: Date.now,

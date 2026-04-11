@@ -70,6 +70,8 @@ const caseSchema = new mongoose.Schema({
         default: 'pending' 
       },
       verifiedAt: Date,
+      fileHash: { type: String, default: null },
+      deviceMetadata: { type: String, default: null },
     },
   ],
   
