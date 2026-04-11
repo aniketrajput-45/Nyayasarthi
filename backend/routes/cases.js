@@ -1,4 +1,5 @@
 import express from 'express';
+import crypto from 'crypto';
 import Case from '../models/Case.js';
 import User from '../models/User.js';
 import { verifyToken, checkRole } from '../middleware/auth.js';
@@ -6,6 +7,11 @@ import Notification from '../models/Notification.js';
 import { notifyAllParties } from '../utils/notificationSystem.js';
 
 const router = express.Router();
+
+// Helper to generate hash
+const generateHash = (data) => {
+  return crypto.createHash('sha256').update(data).digest('hex');
+};
 
 // Helper to generate Case ID
 const generateCaseNumber = async () => {
@@ -337,18 +343,32 @@ router.post('/:id/investigation-notes', verifyToken, checkRole(['police']), asyn
   }
 });
 
-// 9. Upload Evidence (Digital Locker)
-router.post('/:id/evidence', verifyToken, checkRole(['police']), async (req, res) => {
+// 9. Upload Evidence (Secure Evidence Vault)
+router.post('/:id/evidence', verifyToken, checkRole(['police', 'citizen']), async (req, res) => {
   try {
-    const { fileName, fileUrl } = req.body; // In a real app, this would handle file upload
+    const { fileName, fileUrl, deviceMetadata } = req.body;
     const caseItem = await Case.findById(req.params.id);
     
     if (!caseItem) return res.status(404).json({ message: 'Case not found' });
 
+    // Compute hash for the file content/URL to ensure integrity
+    // In a real app, we'd hash the actual file buffer. Here we hash the URL/metadata.
+    const fileHash = generateHash(fileUrl + fileName + (deviceMetadata || ''));
+
     caseItem.documents.push({
       fileName,
       fileUrl,
-      uploadedAt: new Date()
+      fileHash,
+      deviceMetadata: deviceMetadata || 'Browser Upload',
+      uploadedAt: new Date(),
+      verificationStatus: 'pending'
+    });
+
+    caseItem.timeline.push({
+      date: new Date(),
+      status: caseItem.status,
+      updatedBy: req.user.userId,
+      notes: `New evidence "${fileName}" uploaded and secured with hash ${fileHash.substring(0, 10)}...`
     });
 
     await caseItem.save();
