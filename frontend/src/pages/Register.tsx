@@ -1,32 +1,61 @@
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
-import { Mail, Lock, User, AlertCircle, Shield } from 'lucide-react';
+import { useTheme } from '../context/ThemeContext';
+import { 
+  Mail, Lock, User, AlertCircle, Shield, 
+  Phone, Fingerprint, Gavel, Briefcase, 
+  CheckCircle2, ArrowRight, Sparkles,
+  Sun, Moon, Eye
+} from 'lucide-react';
 
 const roles = [
-  { id: 'citizen', label: 'Citizen', description: 'File and track cases' },
-  { id: 'police', label: 'Police Officer', description: 'Investigate cases' },
-  { id: 'lawyer', label: 'Lawyer', description: 'Provide legal representation' },
-  { id: 'judge', label: 'Judge', description: 'Review and judge cases' },
+  { id: 'citizen', label: 'Citizen', description: 'Legal Rights & SOS', icon: User },
+  { id: 'police', label: 'Police', description: 'Investigation Hub', icon: Shield },
+  { id: 'lawyer', label: 'Lawyer', description: 'Advocate Chambers', icon: Briefcase },
+  { id: 'judge', label: 'Judge', description: 'Judicial Chambers', icon: Gavel },
 ];
 
 export const Register: React.FC = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [fullName, setFullName] = useState('');
+  const [phone, setPhone] = useState('');
+  const [aadhaarNumber, setAadhaarNumber] = useState('');
+  const [badgeNumber, setBadgeNumber] = useState('');
+  const [licenseNumber, setLicenseNumber] = useState('');
+  const [courtAssignment, setCourtAssignment] = useState('');
   const [role, setRole] = useState('citizen');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
   const { register } = useAuth();
+  const { theme, toggleTheme } = useTheme();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+
+    if (password !== confirmPassword) {
+      setError('Passwords do not match');
+      return;
+    }
+
     setLoading(true);
 
     try {
-      await register(email, password, fullName, role);
+      await register(
+        email, 
+        password, 
+        fullName, 
+        role,
+        phone,
+        aadhaarNumber,
+        badgeNumber,
+        licenseNumber,
+        courtAssignment
+      );
       navigate('/dashboard');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Registration failed');
@@ -36,107 +65,250 @@ export const Register: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex items-center justify-center p-4">
-      <div className="w-full max-w-2xl">
-        <div className="bg-white rounded-xl shadow-2xl p-8">
-          <h1 className="text-3xl font-bold text-slate-900 mb-2 text-center">Create Account</h1>
-          <p className="text-slate-600 text-center mb-8">Join the Law and Justice Management System</p>
+    <div className={`min-h-screen flex flex-col md:flex-row overflow-x-hidden transition-colors duration-500 ${
+      theme === 'light' ? 'bg-slate-50 text-slate-900' : 
+      theme === 'high-contrast' ? 'bg-black text-white' : 
+      'bg-[#070b14] text-slate-300'
+    }`}>
+      
+      {/* Theme Toggle Floating */}
+      <button 
+        onClick={toggleTheme}
+        className={`fixed top-6 right-6 z-[100] p-3 rounded-2xl border transition-all flex items-center gap-2 shadow-2xl ${
+          theme === 'light' ? 'bg-white border-slate-200 text-slate-600 hover:bg-slate-100' : 
+          theme === 'high-contrast' ? 'bg-zinc-900 border-white text-white hover:bg-zinc-800' : 
+          'bg-white/5 border-white/10 text-slate-300 hover:bg-white/10'
+        }`}
+      >
+        {theme === 'dark' && <Moon size={20} />}
+        {theme === 'light' && <Sun size={20} />}
+        {theme === 'high-contrast' && <Eye size={20} />}
+      </button>
+
+      {/* LEFT SIDE: BRANDING/VISUAL */}
+      <div className={`hidden md:flex md:w-[40%] lg:w-[45%] relative overflow-hidden flex-col justify-between p-12 lg:p-20 border-r transition-colors duration-500 ${
+        theme === 'light' ? 'bg-indigo-600 border-indigo-500' : 
+        theme === 'high-contrast' ? 'bg-black border-white' : 
+        'bg-[#0a0f1d] border-white/5'
+      }`}>
+        <div className="absolute inset-0 bg-[url('https://images.unsplash.com/photo-1589829545856-d10d557cf95f?auto=format&fit=crop&q=80')] bg-cover bg-center opacity-20 grayscale group-hover:scale-105 transition-transform duration-1000"></div>
+        <div className={`absolute inset-0 bg-gradient-to-b ${
+          theme === 'light' ? 'from-indigo-700/50 via-transparent to-indigo-700/50' : 
+          'from-[#070b14] via-transparent to-[#070b14]'
+        }`}></div>
+        
+        {/* Logo */}
+        <div className="relative z-10 flex items-center gap-4 group cursor-pointer" onClick={() => navigate('/')}>
+          <div className="flex flex-wrap w-[40px] h-[40px] gap-[4px] rotate-45 group-hover:rotate-0 transition-all duration-700">
+            <div className="w-[18px] h-[18px] bg-orange-600 rounded-sm shadow-[0_0_15px_rgba(234,88,12,0.5)]"></div>
+            <div className="w-[18px] h-[18px] bg-indigo-600 rounded-sm"></div>
+            <div className="w-[18px] h-[18px] bg-indigo-400 rounded-sm"></div>
+            <div className={`w-[18px] h-[18px] bg-transparent rounded-sm border ${theme === 'light' ? 'border-white/40' : 'border-white/10'}`}></div>
+          </div>
+          <div>
+            <h1 className="text-2xl font-black text-white leading-none tracking-tighter uppercase">Nyayasarthi</h1>
+            <p className={`${theme === 'light' ? 'text-indigo-100' : 'text-indigo-400'} font-bold text-[10px] uppercase tracking-[0.4em] mt-1`}>Digital Justice infrastructure</p>
+          </div>
+        </div>
+
+        {/* Content */}
+        <div className="relative z-10 space-y-10">
+          <div className="space-y-4">
+            <h2 className="text-5xl lg:text-6xl font-black text-white leading-[0.9] tracking-tighter uppercase">Secure Your <br/><span className={theme === 'light' ? 'text-orange-400' : 'text-transparent bg-clip-text bg-gradient-to-r from-indigo-400 to-indigo-600'}>Legal Identity</span></h2>
+            <p className={`${theme === 'light' ? 'text-indigo-50' : 'text-slate-400'} font-medium text-lg max-w-sm leading-relaxed`}>Join the centralized network for swift judicial action and real-time tracking.</p>
+          </div>
+
+          <div className="space-y-6">
+            {[
+              { text: 'AES-256 Encrypted Vault', icon: Lock },
+              { text: 'Real-time Emergency Dispatch', icon: Shield },
+              { text: 'BNSS Statutory Compliance', icon: Gavel }
+            ].map((item, idx) => (
+              <div key={idx} className="flex items-center gap-4 text-white">
+                <div className={`w-10 h-10 rounded-xl flex items-center justify-center shadow-xl border ${
+                  theme === 'light' ? 'bg-white/10 border-white/20 text-orange-400' : 'bg-white/5 border-white/10 text-indigo-400'
+                }`}>
+                  <item.icon size={18} />
+                </div>
+                <span className="text-xs font-black uppercase tracking-widest">{item.text}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div className="relative z-10">
+          <p className={`text-[10px] font-bold uppercase tracking-[0.3em] ${theme === 'light' ? 'text-indigo-200' : 'text-slate-500'}`}>© 2026 Ministry of Digital Justice • V 2.4.0</p>
+        </div>
+      </div>
+
+      {/* RIGHT SIDE: FORM */}
+      <div className={`flex-1 flex flex-col items-center justify-center p-6 lg:p-20 relative transition-colors duration-500 ${
+        theme === 'light' ? 'bg-white' : 
+        theme === 'high-contrast' ? 'bg-black' : 
+        'bg-[#070b14]'
+      }`}>
+        <div className="w-full max-w-xl space-y-10 animate-in fade-in slide-in-from-right-4 duration-700 pb-10">
+          <div className="space-y-2">
+            <h3 className={`text-3xl font-black uppercase tracking-tighter flex items-center gap-4 ${
+              theme === 'light' ? 'text-slate-900' : 'text-white'
+            }`}>
+              <div className="w-1 h-8 bg-indigo-500 rounded-full"></div>
+              Node Registration
+            </h3>
+            <p className="text-slate-500 font-bold uppercase tracking-widest text-[10px]">Initialize your judicial credentials to access the platform</p>
+          </div>
 
           {error && (
-            <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg flex items-start gap-3">
-              <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
-              <p className="text-red-700 text-sm">{error}</p>
+            <div className="p-4 bg-red-500/10 border border-red-500/20 rounded-[1.5rem] flex items-start gap-4 animate-in shake duration-500">
+              <AlertCircle className="w-5 h-5 text-red-500 shrink-0 mt-0.5" />
+              <p className="text-red-400 text-xs font-bold uppercase tracking-wide leading-relaxed">{error}</p>
             </div>
           )}
 
-          <form onSubmit={handleSubmit} className="space-y-6">
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-2">Full Name</label>
-              <div className="relative">
-                <User className="absolute left-3 top-3 w-5 h-5 text-slate-400" />
-                <input
-                  type="text"
-                  value={fullName}
-                  onChange={(e) => setFullName(e.target.value)}
-                  className="w-full pl-10 pr-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  placeholder="John Doe"
-                  required
-                />
-              </div>
-            </div>
-
-  <div>
-              <label className="block text-sm font-medium text-slate-700 mb-2">Email</label>
-              <div className="relative">
-                <Mail className="absolute left-3 top-3 w-5 h-5 text-slate-400" />
-                <input
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  className="w-full pl-10 pr-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  placeholder="your@email.com"
-                  required
-                />
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-2">Password</label>
-              <div className="relative">
-                <Lock className="absolute left-3 top-3 w-5 h-5 text-slate-400" />
-                <input
-                  type="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  className="w-full pl-10 pr-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  placeholder="••••••••"
-                  required
-                />
-              </div>
-            </div>
-  <div>
-              <label className="block text-sm font-medium text-slate-700 mb-3">Select Your Role</label>
-              <div className="grid grid-cols-2 gap-4">
-                {roles.map((r) => (
-                  <label key={r.id} className="cursor-pointer">
+          <form onSubmit={handleSubmit} className="space-y-8">
+            {/* Identity Grid */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+              {[
+                { label: 'Full Name', icon: User, val: fullName, set: setFullName, type: 'text', ph: 'ENTER FULL NAME' },
+                { label: 'Email Node', icon: Mail, val: email, set: setEmail, type: 'email', ph: 'EMAIL@NYAYA.GOV' },
+                { label: 'Secure Mobile', icon: Phone, val: phone, set: setPhone, type: 'text', ph: '+91 00000 00000' },
+                { label: 'Aadhaar (UIDAI)', icon: Fingerprint, val: aadhaarNumber, set: setAadhaarNumber, type: 'text', ph: '0000 0000 0000' }
+              ].map((field, i) => (
+                <div key={i} className="space-y-2">
+                  <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] ml-2">{field.label}</label>
+                  <div className="relative group">
+                    <field.icon className={`absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 transition-colors ${
+                      theme === 'light' ? 'text-slate-400 group-focus-within:text-indigo-600' : 'text-slate-600 group-focus-within:text-indigo-500'
+                    }`} />
                     <input
-                      type="radio"
-                      name="role"
-                      value={r.id}
-                      checked={role === r.id}
-                      onChange={(e) => setRole(e.target.value)}
-                      className="sr-only"
-                    />
-                    <div
-                      className={`p-4 rounded-lg border-2 transition ${
-                        role === r.id
-                          ? 'border-blue-600 bg-blue-50'
-                          : 'border-slate-200 bg-slate-50 hover:border-blue-300'
+                      type={field.type} value={field.val} onChange={(e) => field.set(e.target.value)} required
+                      className={`w-full pl-12 pr-4 py-4 border transition-all outline-none font-bold text-sm uppercase tracking-wider rounded-2xl ${
+                        theme === 'light' ? 'bg-slate-50 border-slate-200 text-slate-900 focus:bg-white focus:border-indigo-600' : 
+                        theme === 'high-contrast' ? 'bg-black border-white text-white focus:bg-zinc-900' :
+                        'bg-white/5 border-white/10 text-white focus:bg-white/10 focus:border-indigo-500'
                       }`}
-                    >
-                      <Shield className="w-5 h-5 mb-2 text-blue-600" />
-                      <p className="font-medium text-slate-900">{r.label}</p>
-                      <p className="text-sm text-slate-600">{r.description}</p>
+                      placeholder={field.ph}
+                    />
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* Role Tactical Selection */}
+            <div className="space-y-4 pt-4">
+              <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] ml-2">Access Role Allocation</label>
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                {roles.map((r) => (
+                  <label key={r.id} className="cursor-pointer group">
+                    <input
+                      type="radio" name="role" value={r.id} checked={role === r.id}
+                      onChange={(e) => setRole(e.target.value)} className="sr-only"
+                    />
+                    <div className={`p-4 rounded-2xl border-2 transition-all duration-500 flex flex-col items-center gap-2 text-center h-full ${
+                      role === r.id
+                        ? (theme === 'light' ? 'border-indigo-600 bg-indigo-50 shadow-xl shadow-indigo-100' : 'border-indigo-600 bg-indigo-600/10 shadow-[0_0_30px_rgba(79,70,229,0.2)]')
+                        : (theme === 'light' ? 'border-slate-100 bg-slate-50 hover:border-slate-200' : 'border-white/5 bg-white/5 hover:border-white/20')
+                    }`}>
+                      <r.icon size={20} className={role === r.id ? 'text-indigo-500' : 'text-slate-400'} />
+                      <p className={`font-black text-[10px] uppercase tracking-tighter ${
+                        role === r.id ? (theme === 'light' ? 'text-indigo-700' : 'text-white') : 'text-slate-500'
+                      }`}>{r.label}</p>
                     </div>
                   </label>
                 ))}
               </div>
             </div>
 
-  <button
-              type="submit"
-              disabled={loading}
-              className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white font-medium py-2 rounded-lg transition"
+            {/* Dynamic Credentials */}
+            {(role === 'police' || role === 'lawyer' || role === 'judge') && (
+              <div className={`p-8 rounded-[2rem] border animate-in zoom-in-95 duration-500 ${
+                theme === 'light' ? 'bg-indigo-50 border-indigo-100' : 'bg-indigo-600/5 border border-indigo-500/20'
+              }`}>
+                <div className="flex items-center gap-3 mb-6">
+                  <Sparkles size={16} className="text-indigo-500" />
+                  <span className="text-[10px] font-black text-indigo-500 uppercase tracking-[0.3em]">Statutory Verification Required</span>
+                </div>
+                
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] ml-2">
+                    {role === 'police' ? 'Badge Number' : role === 'lawyer' ? 'Bar License UID' : 'Court Assignment Node'}
+                  </label>
+                  <input
+                    type="text" 
+                    value={role === 'police' ? badgeNumber : role === 'lawyer' ? licenseNumber : courtAssignment} 
+                    onChange={(e) => {
+                      if(role === 'police') setBadgeNumber(e.target.value);
+                      else if(role === 'lawyer') setLicenseNumber(e.target.value);
+                      else setCourtAssignment(e.target.value);
+                    }} 
+                    required
+                    className={`w-full px-6 py-4 border rounded-2xl outline-none font-bold text-sm uppercase tracking-widest ${
+                      theme === 'light' ? 'bg-white border-slate-200 text-slate-900 focus:border-indigo-600' : 
+                      'bg-[#070b14] border-white/10 text-white focus:border-indigo-500'
+                    }`}
+                    placeholder={role === 'police' ? 'POL-00000' : role === 'lawyer' ? 'BAR/2026/000' : 'E.G. HIGH COURT KARNATAKA'}
+                  />
+                </div>
+              </div>
+            )}
+
+            {/* Passwords */}
+            <div className={`grid grid-cols-1 sm:grid-cols-2 gap-6 pt-4 border-t ${theme === 'light' ? 'border-slate-100' : 'border-white/5'}`}>
+              <div className="space-y-2">
+                <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] ml-2">Access Password</label>
+                <div className="relative group">
+                  <Lock className={`absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 transition-colors ${
+                    theme === 'light' ? 'text-slate-400 group-focus-within:text-indigo-600' : 'text-slate-600 group-focus-within:text-indigo-500'
+                  }`} />
+                  <input
+                    type="password" value={password} onChange={(e) => setPassword(e.target.value)} required
+                    className={`w-full pl-12 pr-4 py-4 border rounded-2xl outline-none font-bold ${
+                      theme === 'light' ? 'bg-slate-50 border-slate-200 text-slate-900 focus:bg-white focus:border-indigo-600' : 
+                      'bg-white/5 border-white/10 text-white focus:bg-white/10 focus:border-indigo-500'
+                    }`}
+                    placeholder="••••••••"
+                  />
+                </div>
+              </div>
+              <div className="space-y-2">
+                <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] ml-2">Confirm Node Key</label>
+                <div className="relative group">
+                  <CheckCircle2 className={`absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 transition-colors ${
+                    theme === 'light' ? 'text-slate-400 group-focus-within:text-emerald-600' : 'text-slate-600 group-focus-within:text-emerald-500'
+                  }`} />
+                  <input
+                    type="password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} required
+                    className={`w-full pl-12 pr-4 py-4 border rounded-2xl outline-none font-bold ${
+                      theme === 'light' ? 'bg-slate-50 border-slate-200 text-slate-900 focus:bg-white focus:border-indigo-600' : 
+                      'bg-white/5 border-white/10 text-white focus:bg-white/10 focus:border-indigo-500'
+                    }`}
+                    placeholder="••••••••"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <button
+              type="submit" disabled={loading}
+              className={`w-full py-5 rounded-[2rem] font-black uppercase tracking-[0.3em] text-xs transition-all flex items-center justify-center gap-4 group shadow-2xl ${
+                theme === 'light' ? 'bg-indigo-600 text-white hover:bg-indigo-700' : 
+                'bg-white text-slate-950 hover:bg-indigo-600 hover:text-white'
+              }`}
             >
-              {loading ? 'Creating account...' : 'Create Account'}
+              {loading ? (
+                <div className="w-5 h-5 border-2 border-current border-t-transparent rounded-full animate-spin"></div>
+              ) : (
+                <>Initialize Account <ArrowRight size={18} className="group-hover:translate-x-1 transition-transform" /></>
+              )}
             </button>
           </form>
 
-          <div className="mt-6 pt-6 border-t border-slate-200">
-            <p className="text-slate-600 text-center text-sm">
-              Already have an account?{' '}
-              <Link to="/login" className="text-blue-600 hover:text-blue-700 font-medium">
-                Login here
+          <div className="pt-10 text-center pb-10">
+            <p className="text-slate-500 font-bold uppercase tracking-widest text-[10px]">
+              Already authenticated? {' '}
+              <Link to="/login" className="text-indigo-500 hover:text-indigo-400 transition-colors underline-offset-8 underline ml-2">
+                Sign in to Node
               </Link>
             </p>
           </div>

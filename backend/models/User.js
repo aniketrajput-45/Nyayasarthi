@@ -21,6 +21,7 @@ const userSchema = new mongoose.Schema({
     required: true,
   },
   phone: String,
+  aadhaarNumber: String,
   address: String,
   profileImage: String,
   badgeNumber: String,

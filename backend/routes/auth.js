@@ -7,10 +7,24 @@ const router = express.Router();
 
 router.post('/register', async (req, res) => {
   try {
-    const { email, password, fullName, role } = req.body;
+    const { 
+      email, password, fullName, role, 
+      phone, aadhaarNumber, badgeNumber, licenseNumber, courtAssignment 
+    } = req.body;
 
-    if (!email || !password || !fullName || !role) {
-      return res.status(400).json({ message: 'All fields are required' });
+    if (!email || !password || !fullName || !role || !phone || !aadhaarNumber) {
+      return res.status(400).json({ message: 'Mandatory fields (Email, Password, Name, Role, Phone, Aadhaar) are required' });
+    }
+
+    // Role-specific mandatory fields
+    if (role === 'police' && !badgeNumber) {
+      return res.status(400).json({ message: 'Police badge number is required' });
+    }
+    if (role === 'lawyer' && !licenseNumber) {
+      return res.status(400).json({ message: 'Lawyer license number is required' });
+    }
+    if (role === 'judge' && !courtAssignment) {
+      return res.status(400).json({ message: 'Court assignment is required for Judges' });
     }
 
     const existingUser = await User.findOne({ email });
@@ -25,9 +39,14 @@ router.post('/register', async (req, res) => {
       password: hashedPassword,
       fullName,
       role,
+      phone,
+      aadhaarNumber,
+      badgeNumber,
+      licenseNumber,
+      courtAssignment
     });
     
- await user.save();
+    await user.save();
 
     const token = jwt.sign(
       { userId: user._id, email: user.email, role: user.role },
