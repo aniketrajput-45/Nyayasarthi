@@ -1,13 +1,16 @@
 import React, { useEffect, useState } from 'react';
 import { useAuth } from '../../hooks/useAuth';
+import { useTheme } from '../../context/ThemeContext';
 import { 
   Shield, CheckCircle, MessageSquare, BookOpen, 
   Users, AlertTriangle, FileText, Clock, TrendingUp, MapPin, 
-  ChevronDown, ChevronUp, Zap, Sparkles, Map, Target
+  ChevronRight, Zap, Sparkles, Map, Target, Globe, Navigation, X,
+  Sun, Moon, Eye
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer } from 'recharts';
+import { PieChart, Pie, Cell, ResponsiveContainer } from 'recharts';
 import { Notifications } from '../Notifications'; 
+import { io } from 'socket.io-client';
 
 interface Case {
   _id: string;
@@ -18,61 +21,96 @@ interface Case {
   location: string;
   description: string;
   incidentDate: string;
-  deadlineDate: string; // Added Deadline
+  deadlineDate: string;
   assignedPolice?: any; 
   filedBy: { fullName: string; email: string };
 }
 
+interface SOSAlert {
+  id: string;
+  message: string;
+  location: string;
+  citizenName: string;
+  lat: string;
+  lng: string;
+  timestamp: number;
+}
+
 export const PoliceDashboard: React.FC = () => {
   const { user, token } = useAuth();
+  const { theme, toggleTheme } = useTheme();
   const navigate = useNavigate();
   
   const [myCases, setMyCases] = useState<Case[]>([]);
   const [stationCases, setStationCases] = useState<Case[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'queue' | 'map'>('queue');
+  const [sosAlerts, setSosAlerts] = useState<SOSAlert[]>([]);
 
-  // Stats
   const [chartData, setChartData] = useState<any[]>([]);
-  const [stats, setStats] = useState({
-    myActive: 0,
-    stationTotal: 0,
-    unassigned: 0
-  });
+  const [stats, setStats] = useState({ myActive: 0, stationTotal: 0, unassigned: 0 });
 
-  // --- AI PRIORITIZATION LOGIC ---
+  useEffect(() => {
+    const socket = io(import.meta.env.VITE_API_URL?.replace('/api', '') || 'http://localhost:5000');
+    
+    socket.on('sos_alert', (data: any) => {
+      const newAlert: SOSAlert = {
+        id: Math.random().toString(36).substr(2, 9),
+        ...data,
+        timestamp: Date.now()
+      };
+      setSosAlerts(prev => [newAlert, ...prev]);
+      
+      // Play alert sound if possible
+      try {
+        const audio = new Audio('https://assets.mixkit.co/active_storage/sfx/2558/2558-preview.mp3');
+        audio.play();
+      } catch (e) { console.error("Audio play failed", e); }
+    });
+
+    return () => {
+      socket.disconnect();
+    };
+  }, []);
+
+  const removeAlert = (id: string) => {
+    setSosAlerts(prev => prev.filter(a => a.id !== id));
+  };
+
+  const getMapPos = (lat: string, lng: string) => {
+    const l = parseFloat(lat) || 12.9716;
+    const n = parseFloat(lng) || 77.5946;
+    
+    // Mapping 12.96-12.98 and 77.58-77.60 to 0-100%
+    const top = ((12.98 - l) / (0.02)) * 100;
+    const left = ((n - 77.58) / (0.02)) * 100;
+    
+    return { 
+      top: `${Math.max(5, Math.min(95, top))}%`, 
+      left: `${Math.max(5, Math.min(95, left))}%` 
+    };
+  };
+
   const prioritizeCases = (cases: Case[]) => {
     return [...cases].sort((a, b) => {
-      // 1. Severity Score (Criminal > Cyber > Civil)
       const severity: Record<string, number> = { criminal: 3, cyber: 2, civil: 1, corporate: 1 };
       const scoreA = severity[a.type] || 0;
       const scoreB = severity[b.type] || 0;
-      
       if (scoreA !== scoreB) return scoreB - scoreA;
-      
-      // 2. Deadline Urgency (Closer deadline = higher priority)
-      const dateA = new Date(a.deadlineDate).getTime();
-      const dateB = new Date(b.deadlineDate).getTime();
-      return dateA - dateB;
+      return new Date(a.deadlineDate).getTime() - new Date(b.deadlineDate).getTime();
     });
   };
 
   const getTimerStatus = (deadline?: string) => {
-    if (!deadline) return { color: 'bg-gray-100 text-gray-700', text: 'NO DEADLINE', icon: Clock };
-    
-    const today = new Date();
-    const due = new Date(deadline);
-    const diffTime = due.getTime() - today.getTime();
-    const daysLeft = Math.ceil(diffTime / (1000 * 60 * 60 * 24)); 
-
-    if (daysLeft < 0) return { color: 'bg-red-100 text-red-700 border border-red-200', text: `${Math.abs(daysLeft)} DAYS OVERDUE`, icon: AlertTriangle };
-    if (daysLeft < 15) return { color: 'bg-orange-100 text-orange-700 border border-orange-200', text: `${daysLeft} Days Left`, icon: Clock };
-    return { color: 'bg-emerald-100 text-emerald-700 border border-emerald-200', text: `${daysLeft} Days Left`, icon: Clock };
+    if (!deadline) return null;
+    const diff = Math.ceil((new Date(deadline).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24)); 
+    if (diff < 0) return { color: 'text-red-500 border-red-500/20 bg-red-500/5', text: `${Math.abs(diff)}D OVERDUE`, icon: AlertTriangle };
+    if (diff < 15) return { color: 'text-orange-500 border-orange-500/20 bg-orange-500/5', text: `${diff}D LEFT`, icon: Clock };
+    return { color: 'text-emerald-500 border-emerald-500/20 bg-emerald-500/5', text: `${diff}D REMAINING`, icon: Shield };
   };
 
   const isAssignedToMe = (c: Case) => {
-    if (!c.assignedPolice) return false;
-    const assignedId = typeof c.assignedPolice === 'string' ? c.assignedPolice : c.assignedPolice._id;
+    const assignedId = typeof c.assignedPolice === 'string' ? c.assignedPolice : c.assignedPolice?._id;
     return assignedId === user?.userId || assignedId === user?._id;
   };
 
@@ -84,199 +122,228 @@ export const PoliceDashboard: React.FC = () => {
         });
         if (res.ok) {
           const allCases: Case[] = await res.json();
-          
           const mine = allCases.filter(c => isAssignedToMe(c) && c.status !== 'resolved');
           const unassignedCount = allCases.filter(c => !c.assignedPolice).length;
-          const othersCount = allCases.length - mine.length - unassignedCount;
-
           setMyCases(prioritizeCases(mine));
           setStationCases(allCases.filter(c => !isAssignedToMe(c)));
-
-          setStats({
-            myActive: mine.length,
-            stationTotal: allCases.length,
-            unassigned: unassignedCount
-          });
-
+          setStats({ myActive: mine.length, stationTotal: allCases.length, unassigned: unassignedCount });
           setChartData([
-            { name: 'My Cases', value: mine.length, color: '#2563EB' },      
-            { name: 'Unassigned', value: unassignedCount, color: '#F97316' }, 
-            { name: 'Other Officers', value: othersCount, color: '#94A3B8' }  
+            { name: 'My Cases', value: mine.length, color: '#6366f1' },      
+            { name: 'Unassigned', value: unassignedCount, color: '#f97316' }, 
+            { name: 'Station', value: allCases.length - mine.length - unassignedCount, color: '#334155' }  
           ]);
         }
-      } catch (error) {
-        console.error("Error fetching police data", error);
-      } finally {
-        setLoading(false);
-      }
+      } catch (error) { console.error(error); } finally { setLoading(false); }
     };
     fetchCases();
-    const interval = setInterval(fetchCases, 10000); 
-    return () => clearInterval(interval);
   }, [token, user]);
 
   if (loading) return (
-    <div className="flex items-center justify-center min-h-screen bg-slate-50">
-      <div className="flex flex-col items-center gap-4">
-        <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
-        <p className="text-slate-500 font-black animate-pulse uppercase tracking-widest text-[10px]">Synchronizing Command Center...</p>
+    <div className="flex items-center justify-center min-h-screen bg-[#070b14] dark:bg-[#070b14] light:bg-slate-50 high-contrast:bg-black transition-colors duration-500">
+      <div className="flex flex-col items-center gap-6">
+        <div className="w-16 h-16 border-4 border-blue-500 border-t-transparent rounded-full animate-spin shadow-[0_0_30px_rgba(59,130,246,0.3)]"></div>
+        <p className="text-blue-400 font-black animate-pulse uppercase tracking-[0.3em] text-[10px]">Booting Tactical Command...</p>
       </div>
     </div>
   );
 
   return (
-    <div className="min-h-screen bg-[#F8FAFC]">
+    <div className={`min-h-screen transition-colors duration-500 font-sans selection:bg-blue-500/30 overflow-x-hidden ${
+      theme === 'light' ? 'bg-slate-50 text-slate-900' : 
+      theme === 'high-contrast' ? 'bg-black text-white' : 
+      'bg-[#070b14] text-slate-300'
+    }`}>
       
-      {/* 1. PREMIUM HEADER */}
-      <div className="bg-white border-b border-slate-200 sticky top-0 z-30 px-6 py-4">
-        <div className="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center gap-4">
-          <div className="flex items-center gap-4 w-full md:w-auto">
-            <div className="w-12 h-12 rounded-2xl bg-blue-600 flex items-center justify-center text-white shadow-lg shadow-blue-200 shrink-0">
+      {/* 1. HEADER */}
+      <nav className={`sticky top-0 z-[100] border-b px-6 lg:px-12 py-4 backdrop-blur-2xl transition-all duration-500 ${
+        theme === 'light' ? 'bg-white/80 border-slate-200' : 
+        theme === 'high-contrast' ? 'bg-black border-white' : 
+        'bg-[#070b14]/80 border-white/5'
+      }`}>
+        <div className="max-w-[1440px] mx-auto flex flex-col md:flex-row justify-between items-center gap-6">
+          <div className="flex items-center gap-4 group cursor-pointer" onClick={() => navigate('/')}>
+            <div className="w-12 h-12 rounded-2xl bg-blue-600 flex items-center justify-center text-white shadow-2xl shadow-blue-500/20">
               <Shield size={24} />
             </div>
             <div>
-              <h1 className="text-xl font-black text-slate-900 leading-tight">Command Center</h1>
-              <p className="text-blue-600 font-bold text-[10px] uppercase tracking-[0.2em]">Officer {user?.fullName}</p>
+              <h1 className={`text-lg font-black leading-tight tracking-tighter uppercase transition-colors ${theme === 'light' ? 'text-slate-900' : 'text-white'}`}>Nyayasarthi</h1>
+              <p className="text-blue-400 font-bold text-[9px] uppercase tracking-[0.3em]">Digital Police Hub</p>
             </div>
           </div>
 
-          <div className="flex items-center gap-3 w-full md:w-auto justify-end">
-            <div className="bg-slate-100 p-2.5 rounded-xl hover:bg-slate-200 transition-colors cursor-pointer relative group">
+          <div className="flex items-center gap-4 w-full md:w-auto">
+            {/* Theme Toggle */}
+            <button 
+              onClick={toggleTheme}
+              className={`p-2.5 rounded-xl border transition-all flex items-center gap-2 ${
+                theme === 'light' ? 'bg-slate-100 border-slate-200 text-slate-600 hover:bg-slate-200' : 
+                theme === 'high-contrast' ? 'bg-zinc-900 border-white text-white hover:bg-zinc-800' : 
+                'bg-white/5 border-white/10 text-slate-300 hover:bg-white/10'
+              }`}
+              title="Switch Accessibility Mode"
+            >
+              {theme === 'dark' && <Moon size={18} />}
+              {theme === 'light' && <Sun size={18} />}
+              {theme === 'high-contrast' && <Eye size={18} />}
+              <span className="text-[10px] font-black uppercase tracking-widest hidden sm:block">Mode</span>
+            </button>
+
+            <div className={`flex-1 md:flex-none flex items-center gap-2 backdrop-blur-md px-4 py-2.5 rounded-2xl border transition-all ${
+              theme === 'light' ? 'bg-slate-100 border-slate-200' : 
+              theme === 'high-contrast' ? 'bg-zinc-900 border-white' : 
+              'bg-white/5 border-white/10'
+            }`}>
+               <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse"></div>
+               <span className={`text-[10px] font-black uppercase tracking-widest ${theme === 'light' ? 'text-slate-700' : 'text-slate-200'}`}>Officer: {user?.fullName}</span>
+            </div>
+            <div className={`p-2.5 rounded-xl border transition-all cursor-pointer relative ${
+              theme === 'light' ? 'bg-slate-100 border-slate-200 hover:bg-slate-200' : 
+              theme === 'high-contrast' ? 'bg-zinc-900 border-white hover:bg-zinc-800' : 
+              'bg-white/5 border-white/10 hover:bg-white/10'
+            }`}>
                <Notifications />
             </div>
-            <div className="px-4 py-2.5 bg-emerald-50 border border-emerald-100 rounded-xl flex items-center gap-2">
-              <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse" />
-              <span className="text-[10px] font-black text-emerald-600 uppercase tracking-widest">Patrol Live</span>
-            </div>
           </div>
         </div>
-      </div>
+      </nav>
 
-      <div className="max-w-7xl mx-auto p-6 lg:p-8 space-y-10 pb-24">
+      <div className="max-w-[1440px] mx-auto p-6 lg:p-12 space-y-16 pb-32">
         
-        {/* 2. ANALYTICS GRID */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-          <div className="bg-white p-6 rounded-[32px] shadow-sm border border-slate-100 flex flex-col justify-between group hover:border-blue-200 transition-all">
-            <div className="flex justify-between items-start mb-4">
-              <div className="p-3 bg-blue-50 text-blue-600 rounded-2xl group-hover:scale-110 transition-transform">
-                <Shield size={24} />
-              </div>
-              <span className="text-[10px] font-black bg-blue-100 text-blue-700 px-2 py-1 rounded-full uppercase">Priority</span>
-            </div>
-            <div>
-              <h3 className="text-4xl font-black text-slate-900 tracking-tighter">{stats.myActive}</h3>
-              <p className="text-slate-500 text-xs font-bold uppercase mt-1 tracking-wider">Active Investigations</p>
+        {/* SOS ALERTS SECTION */}
+        {sosAlerts.length > 0 && (
+          <div className="space-y-6 animate-in fade-in slide-in-from-top-4 duration-700">
+            <h2 className="text-2xl font-black text-red-500 uppercase tracking-tighter flex items-center gap-4">
+              <div className="w-1 h-8 bg-red-600 rounded-full animate-pulse"></div>
+              Active Emergency Signals
+            </h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {sosAlerts.map(alert => (
+                <div key={alert.id} className="bg-red-600 rounded-[2.5rem] p-8 text-white shadow-[0_0_50px_rgba(220,38,38,0.3)] border border-red-400/30 relative overflow-hidden group">
+                  <div className="absolute top-0 right-0 p-8 opacity-10 rotate-12 group-hover:scale-110 transition-transform duration-700">
+                    <AlertTriangle size={120} />
+                  </div>
+                  <div className="relative z-10">
+                    <div className="flex justify-between items-start mb-6">
+                      <div className="flex items-center gap-4">
+                        <div className="w-12 h-12 rounded-2xl bg-white/20 backdrop-blur-md flex items-center justify-center animate-pulse">
+                          <Navigation size={24} className="fill-current" />
+                        </div>
+                        <div>
+                          <p className="text-[10px] font-black uppercase tracking-[0.3em] text-red-100">Immediate Dispatch Required</p>
+                          <h3 className="text-2xl font-black uppercase tracking-tight">{alert.citizenName}</h3>
+                        </div>
+                      </div>
+                      <button onClick={() => removeAlert(alert.id)} className="p-2 hover:bg-white/10 rounded-xl transition-colors">
+                        <X size={20} />
+                      </button>
+                    </div>
+                    <div className="space-y-4 mb-8">
+                      <div className="flex items-center gap-3 text-red-50">
+                        <MapPin size={18} />
+                        <span className="text-sm font-bold uppercase tracking-wide">{alert.location}</span>
+                      </div>
+                      <div className="flex items-center gap-3 text-red-50">
+                        <Globe size={18} />
+                        <span className="text-xs font-mono">GPS: {alert.lat}, {alert.lng}</span>
+                      </div>
+                    </div>
+                    <div className="flex gap-4">
+                      <button className="flex-1 py-4 bg-white text-red-600 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-red-50 transition-all shadow-xl shadow-red-900/20">
+                        Dispatch Nearest Unit
+                      </button>
+                      <button className="px-6 py-4 bg-red-700 text-white rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-red-800 transition-all border border-red-500/50">
+                        Route
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ))}
             </div>
           </div>
+        )}
 
-          <div className="bg-white p-6 rounded-[32px] shadow-sm border border-slate-100 flex flex-col justify-between group hover:border-orange-200 transition-all">
-            <div className="flex justify-between items-start mb-4">
-              <div className="p-3 bg-orange-50 text-orange-600 rounded-2xl group-hover:scale-110 transition-transform">
-                <AlertTriangle size={24} />
+        {/* 2. STATS */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 relative z-10">
+          {[
+            { label: 'Tactical Load', val: stats.myActive, icon: Shield, color: 'text-blue-400', bg: 'bg-blue-500/10', border: 'border-blue-500/20' },
+            { label: 'Needs Assignment', val: stats.unassigned, icon: AlertTriangle, color: 'text-orange-400', bg: 'bg-orange-500/10', border: 'border-orange-500/20' },
+            { label: 'Monthly Clearance', val: stats.stationTotal - stats.unassigned, icon: TrendingUp, color: 'text-emerald-400', bg: 'bg-emerald-500/10', border: 'border-emerald-500/20' },
+            { label: 'Workload Load', val: 'Optimized', icon: Zap, color: 'text-white', bg: 'bg-gradient-to-br from-blue-600 to-indigo-800', border: 'border-white/10', isChart: true }
+          ].map((stat, i) => (
+            <div key={i} className={`p-8 rounded-[2.5rem] border transition-all duration-500 overflow-hidden relative ${
+              theme === 'light' ? 'bg-white border-slate-200 shadow-sm shadow-slate-200' : 
+              theme === 'high-contrast' ? 'bg-zinc-900 border-white' : 
+              `${stat.bg} ${stat.border}`
+            } group`}>
+              <div className={`w-12 h-12 rounded-2xl flex items-center justify-center mb-6 border ${
+                theme === 'light' ? 'bg-slate-50 border-slate-100 text-blue-600' : 
+                theme === 'high-contrast' ? 'bg-black border-white text-white' : 
+                `${stat.bg} ${stat.color} ${stat.border}`
+              }`}>
+                <stat.icon size={24} />
               </div>
-              <span className="text-[10px] font-black bg-orange-100 text-orange-700 px-2 py-1 rounded-full uppercase">Pending</span>
+              {stat.isChart ? (
+                <div className="h-12 w-full mb-2">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart><Pie data={chartData} innerRadius={15} outerRadius={22} dataKey="value">{chartData.map((e, idx) => <Cell key={idx} fill={e.color} />)}</Pie></PieChart>
+                  </ResponsiveContainer>
+                </div>
+              ) : (
+                <h3 className={`text-4xl font-black tracking-tighter mb-1 transition-colors ${theme === 'light' ? 'text-slate-900' : 'text-white'}`}>{stat.val}</h3>
+              )}
+              <p className={`text-[10px] font-black uppercase tracking-[0.3em] ${theme === 'light' ? 'text-slate-500' : 'text-slate-400'}`}>{stat.label}</p>
             </div>
-            <div>
-              <h3 className="text-4xl font-black text-slate-900 tracking-tighter">{stats.unassigned}</h3>
-              <p className="text-slate-500 text-xs font-bold uppercase mt-1 tracking-wider">Unassigned Cases</p>
-            </div>
-          </div>
-
-          <div className="bg-white p-6 rounded-[32px] shadow-sm border border-slate-100 flex flex-col justify-between group hover:border-emerald-200 transition-all">
-            <div className="flex justify-between items-start mb-4">
-              <div className="p-3 bg-emerald-50 text-emerald-600 rounded-2xl group-hover:scale-110 transition-transform">
-                <TrendingUp size={24} />
-              </div>
-              <span className="text-[10px] font-black bg-emerald-100 text-emerald-700 px-2 py-1 rounded-full uppercase">Monthly</span>
-            </div>
-            <div>
-              <h3 className="text-4xl font-black text-slate-900 tracking-tighter">{stats.stationTotal - stats.unassigned}</h3>
-              <p className="text-slate-500 text-xs font-bold uppercase mt-1 tracking-wider">Clearance Rate</p>
-            </div>
-          </div>
-
-          <div className="bg-slate-900 p-6 rounded-[32px] shadow-xl shadow-slate-200 flex flex-col items-center justify-center relative overflow-hidden">
-            <div className="absolute inset-0 opacity-10">
-               <Sparkles size={120} className="text-white absolute -right-4 -top-4" />
-            </div>
-            <div className="w-full h-24 z-10">
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie data={chartData} cx="50%" cy="50%" innerRadius={25} outerRadius={35} paddingAngle={5} dataKey="value">
-                    {chartData.map((entry, index) => (<Cell key={`cell-${index}`} fill={entry.color} />))}
-                  </Pie>
-                </PieChart>
-              </ResponsiveContainer>
-            </div>
-            <p className="text-white/50 text-[8px] font-black uppercase tracking-[0.2em] mt-2 z-10">Workload Optimization</p>
-          </div>
+          ))}
         </div>
 
-        {/* 3. TASK QUEUE & HEATMAP TABS */}
-        <div className="bg-white rounded-[40px] shadow-sm border border-slate-100 overflow-hidden">
-          <div className="flex border-b border-slate-100">
-            <button 
-              onClick={() => setActiveTab('queue')}
-              className={`flex-1 py-6 text-xs font-black uppercase tracking-widest flex items-center justify-center gap-3 transition-all ${activeTab === 'queue' ? 'text-blue-600 bg-blue-50/50' : 'text-slate-400 hover:text-slate-600'}`}
-            >
-              <Zap size={18} /> AI-Prioritized Task Queue
-            </button>
-            <button 
-              onClick={() => setActiveTab('map')}
-              className={`flex-1 py-6 text-xs font-black uppercase tracking-widest flex items-center justify-center gap-3 transition-all ${activeTab === 'map' ? 'text-blue-600 bg-blue-50/50' : 'text-slate-400 hover:text-slate-600'}`}
-            >
-              <Map size={18} /> Station Incident Heatmap
-            </button>
+        {/* 3. TABS: QUEUE & HEATMAP */}
+        <div className={`backdrop-blur-xl rounded-[3rem] border overflow-hidden shadow-2xl transition-all duration-500 ${
+          theme === 'light' ? 'bg-white border-slate-200' : 
+          theme === 'high-contrast' ? 'bg-zinc-900 border-white' : 
+          'bg-white/5 border-white/10'
+        }`}>
+          <div className={`flex border-b ${theme === 'light' ? 'border-slate-100' : 'border-white/5'}`}>
+            <button onClick={() => setActiveTab('queue')} className={`flex-1 py-8 text-[10px] font-black uppercase tracking-[0.3em] flex items-center justify-center gap-3 transition-all ${activeTab === 'queue' ? (theme === 'light' ? 'text-blue-600 bg-slate-50' : 'text-blue-400 bg-white/5') : 'text-slate-500 hover:text-slate-300'}`}><Zap size={18} /> AI Task Queue</button>
+            <button onClick={() => setActiveTab('map')} className={`flex-1 py-8 text-[10px] font-black uppercase tracking-[0.3em] flex items-center justify-center gap-3 transition-all ${activeTab === 'map' ? (theme === 'light' ? 'text-blue-600 bg-slate-50' : 'text-blue-400 bg-white/5') : 'text-slate-500 hover:text-slate-300'}`}><Map size={18} /> Jurisdiction Heatmap</button>
           </div>
 
-          <div className="p-8 lg:p-10">
+          <div className="p-8 lg:p-12">
             {activeTab === 'queue' && (
-              <div className="space-y-8 animate-in fade-in slide-in-from-bottom-2 duration-500">
-                <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-                  <div>
-                    <h3 className="text-xl font-black text-slate-900 flex items-center gap-2">
-                      <Sparkles size={20} className="text-blue-600" /> Dispatch Priorities
-                    </h3>
-                    <p className="text-slate-500 text-xs font-bold uppercase mt-1 tracking-wider">Sorted by severity & legal deadlines</p>
-                  </div>
-                  <div className="px-4 py-2 bg-blue-50 rounded-xl text-[10px] font-black text-blue-600 uppercase tracking-widest border border-blue-100">
-                    Auto-Optimized by AI
-                  </div>
+              <div className="space-y-10 animate-in fade-in slide-in-from-bottom-2 duration-500">
+                <div className="flex justify-between items-center">
+                  <h3 className={`text-xl font-black uppercase tracking-tighter flex items-center gap-4 transition-colors ${theme === 'light' ? 'text-slate-900' : 'text-white'}`}><Sparkles className="text-blue-500" size={20} /> Priority Investigations</h3>
+                  <div className={`px-4 py-2 border rounded-xl text-[9px] font-black uppercase tracking-widest ${theme === 'light' ? 'bg-blue-50 border-blue-100 text-blue-600' : 'bg-blue-500/10 border border-blue-500/20 text-blue-400'}`}>AI Ranked by BNSS Statute</div>
                 </div>
 
                 {myCases.length === 0 ? (
-                  <div className="py-20 text-center bg-slate-50 rounded-[32px] border-2 border-dashed border-slate-200">
-                    <Target size={48} className="mx-auto text-slate-200 mb-4" />
-                    <p className="text-slate-400 font-black uppercase tracking-widest text-xs">All clear • No urgent tasks</p>
+                  <div className={`p-20 text-center rounded-[2.5rem] border ${theme === 'light' ? 'bg-slate-50 border-slate-100' : 'bg-black/20 border-white/5'}`}>
+                    <Target size={48} className="mx-auto text-slate-800 mb-6" />
+                    <p className="text-slate-500 font-black uppercase tracking-widest text-[10px]">No active dispatch signals</p>
                   </div>
                 ) : (
                   <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                     {myCases.map((c, idx) => {
                       const timer = getTimerStatus(c.deadlineDate);
                       return (
-                        <div key={c._id} className="group bg-slate-50 hover:bg-white rounded-[32px] p-6 border border-transparent hover:border-blue-200 hover:shadow-xl hover:shadow-blue-100 transition-all duration-500">
+                        <div key={c._id} className={`p-8 border rounded-[2.5rem] transition-all duration-500 group ${
+                          theme === 'light' ? 'bg-white border-slate-200 hover:border-blue-300 hover:shadow-xl hover:shadow-blue-50' : 
+                          theme === 'high-contrast' ? 'bg-black border-white hover:bg-zinc-900' : 
+                          'bg-white/5 border-white/5 hover:border-blue-500/30'
+                        }`}>
                           <div className="flex justify-between items-start mb-6">
-                            <div className="flex gap-4">
-                              <div className="w-12 h-12 rounded-2xl bg-blue-600 text-white flex items-center justify-center font-black shadow-lg shadow-blue-200 group-hover:scale-110 transition-transform">
-                                {idx + 1}
-                              </div>
+                            <div className="flex gap-5">
+                              <div className="w-14 h-14 rounded-2xl bg-blue-600 text-white flex items-center justify-center font-black shadow-2xl shadow-blue-500/20 group-hover:scale-110 transition-transform">0{idx + 1}</div>
                               <div>
-                                <h4 className="font-black text-slate-900 text-lg tracking-tight group-hover:text-blue-600 transition-colors line-clamp-1">{c.title}</h4>
-                                <div className="flex items-center gap-2 mt-1">
-                                  <span className="text-[10px] font-black text-slate-400 tracking-widest">#{c.caseNumber}</span>
-                                  {timer && <span className={`text-[8px] font-black px-2 py-0.5 rounded-full uppercase ${timer.color}`}>{timer.text}</span>}
-                                </div>
+                                <h4 className={`text-lg font-black uppercase tracking-tight transition-colors ${theme === 'light' ? 'text-slate-900 group-hover:text-blue-600' : 'text-white group-hover:text-blue-400'}`}>{c.title}</h4>
+                                <p className="text-[10px] font-bold text-slate-500 uppercase mt-1 tracking-widest">Ref: {c.caseNumber}</p>
                               </div>
                             </div>
-                            {idx === 0 && <span className="bg-red-600 text-white text-[8px] font-black px-2 py-1 rounded-lg animate-pulse">URGENT dispatch</span>}
+                            {timer && <span className={`px-2 py-1 rounded-lg text-[8px] font-black uppercase tracking-widest border ${timer.color}`}>{timer.text}</span>}
                           </div>
-                          <p className="text-slate-600 text-xs font-medium leading-relaxed mb-6 line-clamp-2 italic">"{c.description}"</p>
+                          <p className={`text-xs font-medium leading-relaxed mb-8 line-clamp-2 italic ${theme === 'light' ? 'text-slate-600' : 'text-slate-400'}`}>"{c.description}"</p>
                           <div className="flex items-center justify-between">
-                            <div className="flex gap-2">
-                              <span className="px-3 py-1 bg-white border border-slate-200 rounded-full text-[9px] font-black text-slate-500 uppercase flex items-center gap-1"><MapPin size={10}/> {c.location}</span>
-                              <span className="px-3 py-1 bg-white border border-slate-200 rounded-full text-[9px] font-black text-slate-500 uppercase">{c.type}</span>
-                            </div>
-                            <button onClick={() => navigate(`/case/${c._id}`)} className="text-[10px] font-black text-blue-600 uppercase tracking-widest hover:underline">File Report &rarr;</button>
+                            <div className="flex gap-2"><span className={`px-3 py-1 rounded-full text-[9px] font-black uppercase border flex items-center gap-1 ${theme === 'light' ? 'bg-slate-50 border-slate-200 text-slate-700' : 'bg-white/5 border-white/5 text-slate-300'}`}><MapPin size={10}/> {c.location}</span></div>
+                            <button onClick={() => navigate(`/case/${c._id}`)} className="text-[10px] font-black text-blue-400 uppercase tracking-widest hover:underline">Access Evidence &rarr;</button>
                           </div>
                         </div>
                       );
@@ -288,56 +355,62 @@ export const PoliceDashboard: React.FC = () => {
 
             {activeTab === 'map' && (
               <div className="animate-in fade-in slide-in-from-bottom-2 duration-500">
-                <div className="bg-slate-900 rounded-[32px] p-8 relative overflow-hidden min-h-[500px] border-4 border-slate-800 shadow-2xl">
-                   <div className="absolute top-6 left-6 z-10">
-                      <h3 className="text-white font-black text-lg flex items-center gap-2">
-                        <Map size={20} className="text-blue-400" /> Jurisdiction Overlay
-                      </h3>
-                      <p className="text-blue-400/60 text-[10px] font-bold uppercase tracking-[0.2em]">Real-time telemetry active</p>
+                <div className={`rounded-[3rem] p-10 relative overflow-hidden min-h-[600px] border shadow-2xl transition-all duration-500 ${
+                  theme === 'light' ? 'bg-slate-50 border-slate-200' : 
+                  theme === 'high-contrast' ? 'bg-black border-white' : 
+                  'bg-slate-950 border-white/5'
+                }`}>
+                   <div className="absolute inset-0 opacity-10 pointer-events-none">
+                     <div className="grid grid-cols-10 grid-rows-8 gap-1 h-full w-full">{Array.from({ length: 80 }).map((_, i) => <div key={i} className={`border border-dashed ${theme === 'light' ? 'border-slate-400' : 'border-slate-700'}`} />)}</div>
                    </div>
-
-                   {/* Map Grid Simulation */}
-                   <div className="grid grid-cols-10 grid-rows-8 gap-1 opacity-10 absolute inset-0 p-4">
-                     {Array.from({ length: 80 }).map((_, i) => (
-                       <div key={i} className="aspect-square border border-slate-700 border-dashed" />
-                     ))}
-                   </div>
-
-                   {/* Heatmap Blobs */}
-                   <div className="absolute inset-0 p-12">
-                      <div className="relative w-full h-full">
-                         <div className="absolute top-[20%] left-[30%] w-40 h-40 bg-red-500/20 rounded-full blur-[80px] animate-pulse" />
-                         <div className="absolute top-[28%] left-[38%] p-3 bg-red-600 text-white rounded-2xl shadow-2xl shadow-red-900/50 border border-red-400 animate-bounce">
-                            <AlertTriangle size={20} />
-                         </div>
-                         <div className="absolute top-[38%] left-[38%] bg-slate-900/90 backdrop-blur-md px-3 py-1.5 rounded-xl border border-white/10">
-                            <p className="text-white text-[10px] font-black uppercase">MG Road Hotspot</p>
-                            <p className="text-red-400 text-[8px] font-bold uppercase">6 High-Priority Matched</p>
+                   <div className="relative z-10 h-full">
+                      <h3 className={`font-black text-2xl flex items-center gap-3 uppercase tracking-tighter ${theme === 'light' ? 'text-slate-900' : 'text-white'}`}><Map size={24} className="text-blue-500" /> Jurisdiction Grid</h3>
+                      
+                      <div className={`mt-12 relative h-[400px] w-full border rounded-[2rem] transition-all duration-500 ${
+                        theme === 'light' ? 'bg-white border-slate-200 shadow-inner' : 'bg-black/40 border-white/5'
+                      }`}>
+                         {/* Static Patrol Unit */}
+                         <div className="absolute bottom-[20%] left-[15%] flex flex-col items-center">
+                            <div className="w-3 h-3 bg-blue-500 rounded-full shadow-[0_0_20px_rgba(59,130,246,1)] animate-ping" />
+                            <p className="text-[7px] font-black text-blue-400 mt-2 uppercase tracking-widest bg-black/50 px-2 py-0.5 rounded">Patrol 42</p>
                          </div>
 
-                         <div className="absolute bottom-[20%] right-[20%] w-48 h-48 bg-blue-500/10 rounded-full blur-[100px]" />
-                         <div className="absolute bottom-[25%] right-[25%] p-3 bg-blue-600 text-white rounded-2xl shadow-2xl border border-blue-400">
-                            <Shield size={20} />
-                         </div>
-
-                         <div className="absolute top-[10%] left-[80%] flex flex-col items-center">
-                            <div className="w-4 h-4 bg-emerald-500 rounded-full shadow-[0_0_20px_rgba(16,185,129,1)] animate-ping" />
-                            <p className="text-[8px] font-black text-emerald-400 mt-2 uppercase tracking-widest">Patrol A-14</p>
-                         </div>
+                         {/* Dynamic SOS Alerts on Map */}
+                         {sosAlerts.map(alert => {
+                           const pos = getMapPos(alert.lat, alert.lng);
+                           return (
+                             <div 
+                               key={alert.id} 
+                               className="absolute transition-all duration-1000 flex flex-col items-center"
+                               style={{ top: pos.top, left: pos.left }}
+                             >
+                               {/* Pulsating Radar Effect */}
+                               <div className="absolute -inset-8 bg-red-600/20 rounded-full animate-ping pointer-events-none"></div>
+                               <div className="absolute -inset-16 bg-red-600/10 rounded-full animate-ping [animation-delay:0.5s] pointer-events-none"></div>
+                               
+                               <div className="relative">
+                                 <div className="w-8 h-8 bg-red-600 text-white rounded-xl flex items-center justify-center shadow-[0_0_30px_rgba(220,38,38,1)] animate-bounce border border-red-400">
+                                   <AlertTriangle size={16} />
+                                 </div>
+                                 <div className={`absolute -top-12 left-1/2 -translate-x-1/2 px-3 py-1.5 rounded-full shadow-2xl border whitespace-nowrap ${
+                                   theme === 'light' ? 'bg-white text-red-600 border-red-100' : 'bg-zinc-900 text-red-400 border-white/10'
+                                 }`}>
+                                   <p className="text-[8px] font-black uppercase leading-none tracking-tighter">{alert.citizenName}</p>
+                                   <p className="text-[6px] font-bold uppercase mt-0.5 opacity-70">Emergency SOS</p>
+                                 </div>
+                               </div>
+                             </div>
+                           );
+                         })}
                       </div>
                    </div>
-
-                   <div className="absolute bottom-8 right-8 bg-slate-800/80 backdrop-blur-xl p-6 rounded-3xl border border-white/10 shadow-2xl">
-                      <p className="text-white font-black text-xs uppercase tracking-widest mb-4">Unit Deployment</p>
+                   <div className={`absolute bottom-10 right-10 backdrop-blur-xl p-8 rounded-[2rem] border z-20 transition-all duration-500 ${
+                     theme === 'light' ? 'bg-white/90 border-slate-200 shadow-xl' : 'bg-black/60 border-white/10'
+                   }`}>
+                      <p className={`font-black text-[10px] uppercase tracking-[0.3em] mb-6 ${theme === 'light' ? 'text-slate-900' : 'text-white'}`}>Unit Telemetry</p>
                       <div className="space-y-4">
-                         <div className="flex items-center justify-between gap-12">
-                            <span className="text-[10px] font-bold text-slate-400 uppercase">Active Units</span>
-                            <span className="text-sm font-black text-blue-400">12</span>
-                         </div>
-                         <div className="flex items-center justify-between gap-12">
-                            <span className="text-[10px] font-bold text-slate-400 uppercase">Avg Response</span>
-                            <span className="text-sm font-black text-red-400">4.2m</span>
-                         </div>
+                         <div className="flex justify-between gap-16"><span className="text-[10px] font-bold text-slate-500 uppercase">Active Alerts</span><span className="text-sm font-black text-red-500">{sosAlerts.length}</span></div>
+                         <div className="flex justify-between gap-16"><span className="text-[10px] font-bold text-slate-500 uppercase">Avg Response</span><span className="text-sm font-black text-emerald-400">3.8m</span></div>
                       </div>
                    </div>
                 </div>
@@ -346,64 +419,55 @@ export const PoliceDashboard: React.FC = () => {
           </div>
         </div>
 
-        {/* 4. STATION REGISTRY */}
-        <div className="space-y-6">
-          <h2 className="text-2xl font-black text-slate-900 flex items-center gap-3">
-            <div className="w-2 h-8 bg-slate-900 rounded-full"></div>
-            Station Registry
+        {/* 4. REGISTRY */}
+        <div className="space-y-8">
+          <h2 className={`text-2xl font-black uppercase tracking-tighter flex items-center gap-4 transition-colors ${theme === 'light' ? 'text-slate-900' : 'text-white'}`}>
+            <div className="w-1 h-8 bg-white rounded-full"></div>
+            Station General Registry
           </h2>
-          <div className="bg-white rounded-[40px] shadow-sm border border-slate-100 overflow-hidden">
+          <div className={`backdrop-blur-md rounded-[3rem] border overflow-hidden transition-all duration-500 ${
+            theme === 'light' ? 'bg-white border-slate-200 shadow-sm' : 
+            theme === 'high-contrast' ? 'bg-zinc-900 border-white' : 
+            'bg-white/5 border-white/5'
+          }`}>
             <table className="w-full text-left">
-              <thead className="bg-slate-50 border-b border-slate-100">
+              <thead className={`${theme === 'light' ? 'bg-slate-50' : 'bg-white/5'} border-b ${theme === 'light' ? 'border-slate-100' : 'border-white/5'}`}>
                 <tr>
-                  <th className="px-8 py-6 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Investigation Details</th>
-                  <th className="px-8 py-6 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Statutory Deadline</th>
-                  <th className="px-8 py-6 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Current Status</th>
-                  <th className="px-8 py-6 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Assigned Team</th>
-                  <th className="px-8 py-6 text-right"></th>
+                  <th className="px-10 py-8 text-[10px] font-black text-slate-500 uppercase tracking-[0.3em]">Investigation Profile</th>
+                  <th className="px-10 py-8 text-[10px] font-black text-slate-500 uppercase tracking-[0.3em]">Statutory Deadline</th>
+                  <th className="px-10 py-8 text-[10px] font-black text-slate-500 uppercase tracking-[0.3em]">Assignment</th>
+                  <th className="px-10 py-8 text-right"></th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-50">
+              <tbody className={`divide-y ${theme === 'light' ? 'divide-slate-100' : 'divide-white/5'}`}>
                 {stationCases.map(c => {
                   const timer = getTimerStatus(c.deadlineDate);
                   return (
-                    <tr key={c._id} className="hover:bg-slate-50 transition-colors group">
-                      <td className="px-8 py-6">
-                        <div className="font-black text-slate-900 text-sm uppercase tracking-tight">{c.title}</div>
-                        <div className="text-[10px] text-slate-400 font-bold mt-1 uppercase tracking-widest">Ref: {c.caseNumber}</div>
+                    <tr key={c._id} className={`transition-colors group ${theme === 'light' ? 'hover:bg-slate-50' : 'hover:bg-white/5'}`}>
+                      <td className="px-10 py-8">
+                        <div className={`font-black text-sm uppercase tracking-tight transition-colors ${theme === 'light' ? 'text-slate-900' : 'text-white'}`}>{c.title}</div>
+                        <div className="text-[10px] font-bold text-slate-500 mt-1 uppercase tracking-widest">Node ID: {c.caseNumber}</div>
                       </td>
-                      <td className="px-8 py-6">
-                         {timer && (
-                           <span className={`text-[9px] font-black px-3 py-1 rounded-full uppercase border ${timer.color.replace('bg-', 'bg-opacity-10 ')}`}>
-                             {timer.text}
-                           </span>
-                         )}
+                      <td className="px-10 py-8">
+                         {timer && <span className={`text-[9px] font-black px-3 py-1 rounded-lg uppercase border ${timer.color}`}>{timer.text}</span>}
                       </td>
-                      <td className="px-8 py-6">
-                         <span className={`text-[9px] font-black px-3 py-1 rounded-full uppercase ${
-                            c.status === 'resolved' ? 'bg-emerald-50 text-emerald-600' : 'bg-orange-50 text-orange-600'
-                         }`}>
-                           {c.status}
-                         </span>
-                      </td>
-                      <td className="px-8 py-6">
+                      <td className="px-10 py-8">
                          {c.assignedPolice ? (
-                            <div className="flex items-center gap-2">
-                              <div className="w-8 h-8 rounded-xl bg-slate-100 flex items-center justify-center text-[10px] font-black text-slate-500 border border-slate-200">
-                                {typeof c.assignedPolice === 'string' ? 'O' : c.assignedPolice.fullName.charAt(0)}
-                              </div>
-                              <span className="text-[10px] font-black text-slate-700 uppercase tracking-tight">
-                                {typeof c.assignedPolice === 'string' ? 'Officer Assigned' : c.assignedPolice.fullName}
-                              </span>
+                            <div className="flex items-center gap-3">
+                              <div className={`w-8 h-8 rounded-xl flex items-center justify-center text-[10px] font-black border uppercase ${
+                                theme === 'light' ? 'bg-slate-100 border-slate-200 text-slate-600' : 'bg-white/5 border-white/10 text-slate-400'
+                              }`}>{typeof c.assignedPolice === 'string' ? 'O' : c.assignedPolice.fullName.charAt(0)}</div>
+                              <span className={`text-[10px] font-black uppercase tracking-tight ${theme === 'light' ? 'text-slate-700' : 'text-slate-300'}`}>{typeof c.assignedPolice === 'string' ? 'Officer Assigned' : c.assignedPolice.fullName}</span>
                             </div>
                          ) : (
-                            <span className="text-red-600 font-black text-[9px] uppercase tracking-widest flex items-center gap-1.5 px-3 py-1 bg-red-50 rounded-full border border-red-100">
-                              <AlertTriangle size={12}/> Needs Assignment
-                            </span>
+                            <span className="text-red-500 font-black text-[9px] uppercase tracking-widest flex items-center gap-2 px-3 py-1 bg-red-500/5 rounded-full border border-red-500/20"><AlertTriangle size={12}/> Needs Officer</span>
                          )}
                       </td>
-                      <td className="px-8 py-6 text-right">
-                        <button onClick={() => navigate(`/case/${c._id}`)} className="p-3 bg-slate-50 text-slate-400 hover:bg-blue-600 hover:text-white rounded-2xl transition-all group-hover:shadow-lg group-hover:shadow-blue-100">
+                      <td className="px-10 py-8 text-right">
+                        <button onClick={() => navigate(`/case/${c._id}`)} className={`p-4 rounded-2xl transition-all group-hover:shadow-2xl ${
+                          theme === 'light' ? 'bg-slate-50 text-slate-400 hover:bg-blue-600 hover:text-white' : 
+                          'bg-white/5 text-slate-500 hover:bg-blue-600 hover:text-white'
+                        }`}>
                           <ChevronRight size={20} />
                         </button>
                       </td>

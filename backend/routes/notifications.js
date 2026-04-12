@@ -33,6 +33,19 @@ router.post('/sos', verifyToken, async (req, res) => {
     }));
 
     await Notification.insertMany(notifications);
+
+    // Emit real-time event via Socket.io
+    const io = req.app.get('io');
+    if (io) {
+      io.emit('sos_alert', {
+        message: `🚨 EMERGENCY SOS! Citizen ${citizen.fullName} requires immediate help!`,
+        location: location || 'Current GPS Location',
+        lat,
+        lng,
+        citizenName: citizen.fullName
+      });
+    }
+
     res.json({ success: true, message: 'Emergency alert sent to all nearest police units.' });
   } catch (error) {
     res.status(500).json({ message: 'Error sending SOS alert', error: error.message });

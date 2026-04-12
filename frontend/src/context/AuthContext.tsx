@@ -11,7 +11,17 @@ interface AuthContextType {
   user: User | null;
   token: string | null;
   login: (email: string, password: string) => Promise<void>;
-  register: (email: string, password: string, fullName: string, role: string) => Promise<void>;
+  register: (
+    email: string, 
+    password: string, 
+    fullName: string, 
+    role: string,
+    phone: string,
+    aadhaarNumber: string,
+    badgeNumber?: string,
+    licenseNumber?: string,
+    courtAssignment?: string
+  ) => Promise<void>;
   logout: () => void;
   isAuthenticated: boolean;
 }
@@ -19,7 +29,10 @@ interface AuthContextType {
 export const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 // Ensure we reach the backend correctly whether in dev or production
-const getApiUrl = () => import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+const getApiUrl = () => {
+  const base = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+  return base.endsWith('/api') ? base : base.replace(/\/?$/, '') + '/api';
+};
 
 export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(() => {
@@ -56,13 +69,33 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   }, []);
 
-  const register = useCallback(async (email: string, password: string, fullName: string, role: string) => {
+  const register = useCallback(async (
+    email: string, 
+    password: string, 
+    fullName: string, 
+    role: string,
+    phone: string,
+    aadhaarNumber: string,
+    badgeNumber?: string,
+    licenseNumber?: string,
+    courtAssignment?: string
+  ) => {
     try {
       // 1. Send secure request to real backend
       const response = await fetch(`${getApiUrl()}/auth/register`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password, fullName, role }),
+        body: JSON.stringify({ 
+          email, 
+          password, 
+          fullName, 
+          role,
+          phone,
+          aadhaarNumber,
+          badgeNumber,
+          licenseNumber,
+          courtAssignment
+        }),
       });
 
       const data = await response.json();

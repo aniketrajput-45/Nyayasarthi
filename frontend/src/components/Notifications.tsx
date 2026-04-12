@@ -10,6 +10,11 @@ interface NotificationItem {
   createdAt: string;
 }
 
+const getApiUrl = () => {
+  const base = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+  return base.endsWith('/api') ? base : base.replace(/\/?$/, '') + '/api';
+};
+
 export const Notifications: React.FC = () => {
   const { token, user } = useAuth(); // Get user info too
   const [isOpen, setIsOpen] = useState(false);
@@ -18,9 +23,8 @@ export const Notifications: React.FC = () => {
 
   const fetchNotifications = async () => {
     try {
-      console.log("🔔 Fetching notifications for User:", user?.userId || user?._id); // DEBUG 1
-
-      const res = await fetch(`${import.meta.env.VITE_API_URL}/notifications`, {
+      const apiUrl = getApiUrl();
+      const res = await fetch(`${apiUrl}/notifications`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       
