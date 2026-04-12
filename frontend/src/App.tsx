@@ -13,7 +13,9 @@ import { Cases } from './pages/Cases';
 import { Chat } from './pages/Chat';
 import { Analytics } from './pages/Analytics';
 import { CaseDetails } from './pages/CaseDetails';
-import { Landing } from './pages/Landing'; // Ensure this component is created in /pages
+import { Landing } from './pages/Landing';
+import { FAQ } from './pages/FAQ';
+import { Contact } from './pages/Contact';
 
 function App() {
   return (
@@ -23,6 +25,8 @@ function App() {
           <Routes>
           {/* Public Root Route - Professional Landing Page */}
           <Route path="/" element={<Landing />} />
+          <Route path="/faq" element={<FAQ />} />
+          <Route path="/contact" element={<Contact />} />
 
           {/* Authentication Routes */}
           <Route path="/login" element={<Login />} />

@@ -180,12 +180,18 @@ export const Login: React.FC = () => {
             </div>
 
             <button
+
               type="submit" disabled={loading}
               className={`w-full py-5 rounded-[2rem] font-black uppercase tracking-[0.3em] text-xs transition-all flex items-center justify-center gap-4 group shadow-2xl ${
                 theme === 'light' ? 'bg-indigo-600 text-white hover:bg-indigo-700' : 
                 'bg-white text-slate-950 hover:bg-indigo-600 hover:text-white'
               }`}
-            >
+
+              type="submit"
+              disabled={loading}
+              className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white font-medium py-2 rounded-lg transition"
+
+            
               {loading ? (
                 <div className="w-5 h-5 border-2 border-current border-t-transparent rounded-full animate-spin"></div>
               ) : (

@@ -1,48 +1,16 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Shield, Gavel, Users, MessageSquare, ChevronRight, LucideIcon, ArrowUpRight, Globe, ChevronDown, Instagram, Facebook, Twitter } from 'lucide-react';
+import { Shield, Gavel, Users, MessageSquare, ChevronRight, LucideIcon, ArrowUpRight, Globe, ChevronDown, Instagram, Facebook, Twitter, HelpCircle, LifeBuoy, User, Mail } from 'lucide-react';
 
-function RoleBlock({
-  src,
-  label,
-  alt,
-  heightClass,
-  Icon,
-  gradient,
-}: {
-  src: string;
-  label: string;
-  alt: string;
-  heightClass: string;
-  Icon: LucideIcon;
-  gradient: string;
-}) {
-  const [imgError, setImgError] = useState(false);
-  return (
-    <div className={`${heightClass} rounded-2xl overflow-hidden shadow-xl border border-slate-200 relative group`}>
-      {!imgError ? (
-        <img
-          src={src}
-          alt={alt}
-          className="w-full h-full object-cover object-center"
-          onError={() => setImgError(true)}
-        />
-      ) : (
-        <div className={`w-full h-full ${gradient} flex items-center justify-center`}>
-          <Icon className="w-20 h-20 text-white/90" strokeWidth={1.5} />
-        </div>
-      )}
-      <div className="absolute inset-0 bg-slate-900/40 flex items-end p-4">
-        <span className="text-white font-bold text-lg tracking-wide">{label}</span>
-      </div>
-    </div>
-  );
-}
 
 export const Landing: React.FC = () => {
   const navigate = useNavigate();
   const [activePillar, setActivePillar] = useState(0);
   const [isHovered, setIsHovered] = useState(false);
+
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, []);
 
   useEffect(() => {
     if (isHovered) return;
@@ -78,20 +46,9 @@ export const Landing: React.FC = () => {
               <div className="w-[12px] h-[12px] bg-orange-400 rounded-sm"></div>
               <div className="w-[12px] h-[12px] bg-transparent rounded-sm"></div>
             </div>
-            <span className="text-xl font-bold text-white tracking-tight">Nyayasarthi Law</span>
+            <span className="text-xl font-bold text-white tracking-tight">Nyayasarthi</span>
           </div>
 
-          <div className="hidden lg:flex items-center gap-8 text-sm font-medium text-slate-400 bg-white/5 backdrop-blur-md px-8 py-3 rounded-full border border-white/10 shadow-sm">
-            <a href="#" className="hover:text-white transition">Home</a>
-            <a href="#" className="hover:text-white transition">About</a>
-            <div className="flex items-center gap-1 cursor-pointer hover:text-white transition">
-              Services <ChevronDown size={14} />
-            </div>
-            <a href="#" className="hover:text-white transition">Solution</a>
-            <div className="flex items-center gap-1 cursor-pointer hover:text-white transition ml-2 pl-4 border-l border-white/10">
-              <Globe size={16} className="text-slate-500" /> English <ChevronDown size={14} />
-            </div>
-          </div>
 
           <div className="flex items-center gap-4">
             <button
@@ -117,66 +74,23 @@ export const Landing: React.FC = () => {
               <span className="text-slate-600/90">Matters With</span> <br />
               <span className="text-white shadow-sm">Confidence</span>
             </h1>
-            <p className="mt-8 text-slate-400 text-lg sm:text-xl max-w-sm leading-relaxed font-medium relative z-20 mb-10">
+            <p className="mt-8 text-slate-400 text-lg sm:text-xl max-w-sm leading-relaxed font-medium relative z-20 mb-14">
               A Dedicated Legal Team Committed to Protecting Your Rights and Securing Your Future
             </p>
 
-            {/* Repositioned Chart Card */}
-            {/* <div className="w-[360px] bg-slate-900/40 backdrop-blur-2xl border border-white/5 p-7 rounded-3xl shadow-[0_8px_30px_rgb(0,0,0,0.3)] relative z-20">
-              <div className="flex items-center justify-between mb-8">
-                <h3 className="font-medium text-white text-[15px]">Case Closure Statistics</h3>
-                <button className="bg-slate-800 px-3 py-1.5 rounded-full text-[11px] font-semibold flex items-center gap-1.5 text-slate-300 shadow-sm border border-white/10 hover:bg-slate-700 transition">
-                  Yearly <ChevronDown size={14} />
-                </button>
-              </div>
-              <div className="flex items-end gap-[10px] h-32">
-                {[30, 40, 60, 50, 40, 55, 80].map((val, i) => (
-                  <div key={i} className="flex-1 flex flex-col items-center gap-3 group cursor-pointer relative h-full justify-end">
-                    { }
-                    <div className="absolute bottom-[calc(100%-10px)] mb-3 opacity-0 group-hover:opacity-100 transition-all duration-300 transform translate-y-2 group-hover:translate-y-0 text-[11px] font-bold text-orange-500 bg-white/90 backdrop-blur-sm px-2 py-1 rounded-md shadow-sm z-10 whitespace-nowrap">
-                      {val}k
-                    </div>
-                    <div className="w-full bg-slate-800 rounded-t-sm rounded-b-[4px] relative grow-0 transition-all duration-300 group-hover:bg-indigo-500 group-hover:shadow-[0_0_20px_rgba(99,102,241,0.4)]" style={{ height: `${val}%` }}></div>
-                    <span className="text-[11px] text-slate-500 font-medium tracking-wide transition-colors group-hover:text-white">
-                      {['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul'][i]}
-                    </span>
+            {/* Repositioned Bottom Left Card - Now in Flow for better spacing */}
+            <div className="hidden lg:block w-[400px] bg-slate-900/60 backdrop-blur-2xl border border-white/10 p-6 rounded-[2.5rem] relative z-20 shadow-[0_20px_50px_rgb(0,0,0,0.3)] hover:border-white/20 transition-all duration-500 group">
+              <div className="flex items-center gap-8">
+                <div className="w-28 h-28 bg-slate-800 rounded-3xl overflow-hidden relative shrink-0 shadow-lg group-hover:scale-105 transition-transform duration-500">
+                  <img src="https://images.unsplash.com/photo-1560250097-0b93528c311a?auto=format&fit=crop&q=80&w=200" alt="Lawyer" className="w-full h-full object-cover" />
+                  <div className="absolute top-2 right-2 bg-slate-900/80 p-1.5 rounded-full text-white shadow-xl">
+                    <ArrowUpRight size={16} />
                   </div>
-                ))}
-              </div>
-            </div> */}
-          </div>
-
-          {/* Desktop Overlay Elements */}
-          <div className="hidden lg:block">
-            {/* Top Right: 28K */}
-            {/* <div className="absolute top-16 right-16 text-right">
-              <div className="text-[4rem] leading-none font-light text-white mb-2">28K</div>
-              <div className="flex items-center justify-end gap-3 mt-4">
-                <div className="flex -space-x-4">
-                  <img className="w-12 h-12 rounded-full border-2 border-[#020617] object-cover relative z-30" src="https://i.pravatar.cc/100?img=1" alt="Avatar" />
-                  <img className="w-12 h-12 rounded-full border-2 border-[#020617] object-cover relative z-20" src="https://i.pravatar.cc/100?img=5" alt="Avatar" />
-                  <img className="w-12 h-12 rounded-full border-2 border-[#020617] object-cover relative z-10" src="https://i.pravatar.cc/100?img=3" alt="Avatar" />
                 </div>
-                <button className="w-12 h-12 bg-slate-800 rounded-full flex items-center justify-center shadow-lg hover:bg-slate-700 transition border border-white/10 relative z-0">
-                  <ArrowUpRight size={20} className="text-white" />
-                </button>
-              </div>
-              <p className="text-sm text-slate-400 mt-4 max-w-[180px] ml-auto leading-snug font-medium">
-                Partner with us as we protect your rights
-              </p>
-            </div> */}
-
-            {/* Bottom Left Card */}
-            <div className="absolute bottom-8 left-12 w-[340px] bg-slate-900/60 backdrop-blur-2xl border border-white/10 p-4 rounded-3xl flex items-center gap-5 shadow-[0_8px_30px_rgb(0,0,0,0.2)]">
-              <div className="w-24 h-24 bg-slate-800 rounded-2xl overflow-hidden relative shrink-0">
-                <img src="https://images.unsplash.com/photo-1560250097-0b93528c311a?auto=format&fit=crop&q=80&w=200" alt="Lawyer" className="w-full h-full object-cover" />
-                <div className="absolute top-1.5 right-1.5 bg-slate-800 p-1 rounded-full text-white shadow-md">
-                  <ArrowUpRight size={14} />
+                <div>
+                  <h4 className="font-bold text-white text-[16px] leading-tight tracking-wider uppercase mb-4">PROTECTING EVERY <br /> DEAL YOU MAKE</h4>
+                  <a href="#" className="text-xs font-bold text-slate-400 tracking-widest underline hover:text-white transition-colors uppercase">Get Started</a>
                 </div>
-              </div>
-              <div>
-                <h4 className="font-bold text-white text-[15px] leading-tight tracking-wide uppercase">PROTECTING EVERY <br /> DEAL YOU MAKE</h4>
-                <a href="#" className="text-xs font-bold text-slate-400 tracking-wider underline mt-4 inline-block hover:text-orange-400 transition uppercase">Get Started</a>
               </div>
             </div>
           </div>
@@ -211,29 +125,42 @@ export const Landing: React.FC = () => {
             style={{ transform: `translateX(calc(50% - ${160 + activePillar * 352}px))` }}
           >
             {[
-              { role: 'Citizens', icon: Users, desc: 'File cases, generate legal notices, and track progress effortlessly.' },
-              { role: 'Police', icon: Shield, desc: 'Digital FIR management and evidence tracking for law enforcement.' },
-              { role: 'Lawyers', icon: MessageSquare, desc: 'Seamless communication with clients and case file management.' },
-              { role: 'Judges', icon: Gavel, desc: 'Advanced analytics and organized case review for faster verdicts.' },
+              { role: 'Citizens', icon: Users, desc: 'File cases, generate legal notices, and track progress effortlessly.', image: '/citizen-role-v2.png' },
+              { role: 'Police', icon: Shield, desc: 'Digital FIR management and evidence tracking for law enforcement.', image: '/police-role-v2.png' },
+              { role: 'Lawyers', icon: MessageSquare, desc: 'Seamless communication with clients and case file management.', image: 'https://images.unsplash.com/photo-1505664194779-8beaceb93744?auto=format&fit=crop&q=80&w=800' },
+              { role: 'Judges', icon: Gavel, desc: 'Advanced analytics and organized case review for faster verdicts.', image: 'https://images.unsplash.com/photo-1589829545856-d10d557cf95f?auto=format&fit=crop&q=80&w=800' },
             ].map((item, index) => {
               const isActive = activePillar === index;
               return (
                 <div
                   key={item.role}
-                  className={`w-[320px] mx-[16px] shrink-0 p-10 rounded-[2rem] border transition-all duration-1000 transform cursor-pointer relative group ${isActive
-                    ? 'bg-gradient-to-b from-indigo-900/80 to-slate-900 shadow-[0_0_60px_rgba(79,70,229,0.4)] border-indigo-500 scale-110 z-10 opacity-100'
-                    : 'bg-slate-800/40 border-slate-700/50 scale-90 z-0 opacity-40 hover:opacity-70'
+                  className={`w-[320px] mx-[16px] shrink-0 p-10 rounded-[2rem] border transition-all duration-1000 transform cursor-pointer relative group overflow-hidden ${isActive
+                    ? 'shadow-[0_0_60px_rgba(79,70,229,0.4)] border-indigo-500 scale-110 z-10 opacity-100'
+                    : 'bg-slate-800/40 border-slate-700/50 scale-90 z-0 opacity-80 hover:opacity-100'
                     }`}
                   onClick={() => setActivePillar(index)}
                 >
-                  {/* Background glow effect for active item */}
-                  <div className={`absolute -inset-1 bg-gradient-to-r from-indigo-500 to-purple-500 rounded-[2rem] blur-xl transition-opacity duration-1000 -z-10 ${isActive ? 'opacity-30' : 'opacity-0'}`}></div>
-
-                  <div className={`w-16 h-16 rounded-2xl flex items-center justify-center mb-8 transition-all duration-1000 ${isActive ? 'bg-indigo-500 text-white shadow-[0_0_30px_rgba(99,102,241,0.6)]' : 'bg-slate-800 text-slate-400'}`}>
-                    <item.icon size={32} strokeWidth={1.5} />
+                  {/* Background Image Layer (Permanent) */}
+                  <div className="absolute inset-0 z-0">
+                    <img
+                      src={item.image}
+                      alt={item.role}
+                      className="w-full h-full object-cover transition-transform duration-[2000ms] group-hover:scale-110 opacity-70"
+                    />
+                    <div className="absolute inset-0 bg-gradient-to-b from-slate-900/20 via-slate-900/60 to-slate-900/90"></div>
                   </div>
-                  <h3 className={`text-2xl font-bold mb-4 transition-colors duration-1000 ${isActive ? 'text-white' : 'text-slate-300'}`}>{item.role}</h3>
-                  <p className={`text-sm leading-relaxed transition-colors duration-1000 ${isActive ? 'text-indigo-100/80' : 'text-slate-500'}`}>{item.desc}</p>
+
+                  {/* Content Layer */}
+                  <div className="relative z-10">
+                    {/* Background glow effect for active item */}
+                    <div className={`absolute -inset-1 bg-gradient-to-r from-indigo-500 to-purple-500 rounded-[2rem] blur-xl transition-opacity duration-1000 -z-10 ${isActive ? 'opacity-30' : 'opacity-0'}`}></div>
+
+                    <div className={`w-16 h-16 rounded-2xl flex items-center justify-center mb-8 transition-all duration-1000 ${isActive ? 'bg-indigo-500 text-white shadow-[0_0_30px_rgba(99,102,241,0.6)]' : 'bg-slate-800/90 text-slate-400 border border-white/10'}`}>
+                      <item.icon size={32} strokeWidth={1.5} />
+                    </div>
+                    <h3 className={`text-2xl font-bold mb-4 transition-colors duration-1000 ${isActive ? 'text-white' : 'text-slate-200'}`}>{item.role}</h3>
+                    <p className={`text-sm leading-relaxed transition-colors duration-1000 ${isActive ? 'text-indigo-100/90' : 'text-slate-400 font-medium'}`}>{item.desc}</p>
+                  </div>
                 </div>
               )
             })}
@@ -241,78 +168,55 @@ export const Landing: React.FC = () => {
         </div>
       </section>
 
-      {/* Feature Section */}
-      <section className="py-24 px-8 bg-[#070b14]">
-        <div className="max-w-7xl mx-auto grid lg:grid-cols-2 gap-16 items-center">
-          <div className="grid grid-cols-2 gap-4">
-            {/* Top-Left: Judge | Top-Right: Lawyer | Bottom-Left: Police | Bottom-Right: Citizen */}
-            <div className="space-y-4">
-              <RoleBlock
-                src="https://unsplash.com/photos/e11Oa3kvx4c/download?force=true&w=800"
-                label="Judge"
-                alt="Judge - Justice"
-                heightClass="h-48"
-                Icon={Gavel}
-                gradient="bg-gradient-to-br from-amber-800 to-slate-800"
-              />
-              <RoleBlock
-                src="/police-role.png"
-                label="Police"
-                alt="Police - Law enforcement"
-                heightClass="h-64"
-                Icon={Shield}
-                gradient="bg-gradient-to-br from-slate-700 to-slate-900"
-              />
-            </div>
-            <div className="space-y-4 pt-8">
-              <RoleBlock
-                src="https://unsplash.com/photos/zeH-ljawHtg/download?force=true&w=800"
-                label="Lawyer"
-                alt="Lawyer - Legal counsel"
-                heightClass="h-64"
-                Icon={MessageSquare}
-                gradient="bg-gradient-to-br from-indigo-800 to-slate-800"
-              />
-              <RoleBlock
-                src="https://unsplash.com/photos/ABGaVhJxwDQ/download?force=true&w=800"
-                label="Citizen"
-                alt="Citizen - Justice for all"
-                heightClass="h-48"
-                Icon={Users}
-                gradient="bg-gradient-to-br from-teal-800 to-slate-800"
-              />
-            </div>
-          </div>
-          <div className="space-y-6">
-            <h2 className="text-4xl font-bold text-white italic">"The power of law, at your fingertips."</h2>
-            <p className="text-lg text-slate-400">
-              Our platform bridges the gap between technology and the legal system.
-              Whether it's managing complex case details or using our integrated chatbot for guidance,
-              we ensure transparency and efficiency.
-            </p>
-            <ul className="space-y-4">
-              {['Digital Case Filing', 'Real-time Notifications', 'Secure Chat System', 'Legal Notice Generator'].map((f) => (
-                <li key={f} className="flex items-center gap-3 text-slate-300 font-medium">
-                  <div className="w-5 h-5 rounded-full bg-green-900/30 text-green-400 flex items-center justify-center">✓</div>
-                  {f}
-                </li>
-              ))}
-            </ul>
-          </div>
-        </div>
-      </section>
 
       {/* Footer */}
-      <footer className="bg-[#050810] text-slate-400 py-12 px-8 border-t border-white/5">
-        <div className="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center gap-8">
-          {/* <div className="flex items-center gap-3 text-white">
-            <img src="/nyayasarthi-logo.png" alt="Nayayasarthi Court of Justice" className="h-16 w-auto object-contain brightness-0 invert opacity-90" />
-            <span className="text-xl font-bold">Nyayasarthi</span>
-          </div> */}
-          <p className="text-sm">© 2026 Justice Hub. Making legal services accessible to every citizen.</p>
-          <div className="flex gap-6">
-            <a href="#" className="hover:text-white transition">Privacy Policy</a>
-            <a href="#" className="hover:text-white transition">Terms of Service</a>
+      <footer className="bg-[#050810] text-slate-400 py-24 px-8 border-t border-white/5">
+        <div className="max-w-7xl mx-auto flex flex-col gap-16">
+          {/* Quick Links Grid */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+            {[
+              { label: 'FAQ', icon: HelpCircle, desc: 'Common legal questions', path: '/faq' },
+              { label: 'Help Centre', icon: LifeBuoy, desc: 'Technical & legal support', path: '#' },
+              { label: 'Account', icon: User, desc: 'Your case dashboard', path: '/login' },
+              { label: 'Contact Us', icon: Mail, desc: 'Direct communication', path: '/contact' },
+            ].map((item) => (
+              <div
+                key={item.label}
+                onClick={() => item.path !== '#' && navigate(item.path)}
+                className={`group relative aspect-[2.4/1] bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl p-4 flex items-center gap-4 hover:bg-white/[0.08] hover:border-orange-500/30 transition-all duration-500 overflow-hidden ${item.path !== '#' ? 'cursor-pointer' : 'cursor-default'}`}
+              >
+                {/* Accent Glow */}
+                <div className="absolute -right-4 -top-4 w-24 h-24 bg-orange-500/10 blur-3xl opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
+
+                <div className="w-10 h-10 shrink-0 rounded-xl bg-slate-900/50 border border-white/5 flex items-center justify-center text-slate-400 group-hover:text-orange-500 group-hover:border-orange-500/20 transition-all duration-500">
+                  <item.icon size={20} strokeWidth={1.5} />
+                </div>
+
+                <div className="min-w-0">
+                  <h4 className="text-white font-bold text-xs tracking-wide uppercase truncate">{item.label}</h4>
+                  <p className="text-[10px] text-slate-500 mt-0.5 font-medium group-hover:text-slate-400 transition-colors uppercase tracking-tight truncate">{item.desc}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <div className="flex flex-col md:flex-row justify-between items-center pt-12 border-t border-white/5 gap-8">
+            <div className="flex items-center gap-3">
+              <div className="flex flex-wrap w-[24px] h-[24px] gap-[2px]">
+                <div className="w-[11px] h-[11px] bg-orange-600 rounded-sm"></div>
+                <div className="w-[11px] h-[11px] bg-orange-500 rounded-sm"></div>
+                <div className="w-[11px] h-[11px] bg-orange-400 rounded-sm"></div>
+                <div className="w-[11px] h-[11px] bg-transparent rounded-sm"></div>
+              </div>
+              <span className="text-sm font-bold text-white tracking-widest uppercase opacity-60">Nyayasarthi</span>
+            </div>
+
+            <p className="text-[13px] font-medium opacity-50">© 2026 Nyayasarthi. Making legal services accessible to every citizen.</p>
+
+            <div className="flex gap-8">
+              <a href="#" className="text-[11px] font-bold uppercase tracking-widest hover:text-white transition">Privacy Policy</a>
+              <a href="#" className="text-[11px] font-bold uppercase tracking-widest hover:text-white transition">Terms of Service</a>
+            </div>
           </div>
         </div>
       </footer>
