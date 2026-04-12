@@ -1,9 +1,11 @@
 import React, { useEffect, useState } from 'react';
 import { useAuth } from '../../hooks/useAuth';
+import { useTheme } from '../../context/ThemeContext';
 import { 
   Gavel, AlertCircle, CheckCircle, Clock, 
   ArrowRight, Shield, Briefcase, FileText, Lock,
-  TrendingUp, Calendar, ChevronRight, Activity, Award
+  TrendingUp, Calendar, ChevronRight, Activity, Award, Globe, X,
+  Sun, Moon, Eye
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { AssignModal } from '../AssignModal'; 
@@ -22,6 +24,7 @@ interface Case {
 
 export const JudgeDashboard: React.FC = () => {
   const { token, user } = useAuth();
+  const { theme, toggleTheme } = useTheme();
   const navigate = useNavigate();
   
   const [stats, setStats] = useState({ total: 0, pending: 0, unassigned: 0, backlog: 0 });
@@ -49,157 +52,188 @@ export const JudgeDashboard: React.FC = () => {
         setUnassignedCases(pending);
         setAssignedCases(active);
       }
-    } catch (error) { console.error("Error loading judge data", error); } finally { setLoading(false); }
+    } catch (error) { console.error(error); } finally { setLoading(false); }
   };
 
   useEffect(() => { fetchData(); }, [token]);
 
   const getHeatmapColor = (days: number) => {
-    if (days < 0) return 'bg-red-500 shadow-red-100';
-    if (days < 15) return 'bg-orange-400 shadow-orange-100';
-    return 'bg-emerald-400 shadow-emerald-100';
+    if (days < 0) return 'bg-red-500 shadow-[0_0_20px_rgba(239,68,68,0.4)]';
+    if (days < 15) return 'bg-orange-500 shadow-[0_0_20px_rgba(249,115,22,0.4)]';
+    return 'bg-emerald-500 shadow-[0_0_20px_rgba(16,185,129,0.4)]';
   };
 
   const handleCloseCase = async (id: string, caseNumber: string) => {
-    if (!confirm(`ISSUE VERDICT for Case #${caseNumber}?`)) return;
+    if (!confirm(`ISSUE FINAL VERDICT for Case #${caseNumber}?`)) return;
     try {
       const res = await fetch(`${import.meta.env.VITE_API_URL}/cases/${id}/verdict`, {
         method: 'PUT',
         headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' }
       });
-      if (res.ok) { alert(`Case Resolved.`); fetchData(); }
+      if (res.ok) { fetchData(); }
     } catch (err) { console.error(err); }
   };
 
   const getTimerStatus = (deadline?: string) => {
-    if (!deadline) return { color: 'text-slate-400', text: 'NO DEADLINE', icon: Clock };
-    const today = new Date();
-    const due = new Date(deadline);
-    const diff = Math.ceil((due.getTime() - today.getTime()) / (1000 * 60 * 60 * 24)); 
-    if (diff < 0) return { color: 'bg-red-50 text-red-600 border-red-100', text: `${Math.abs(diff)}D OVERDUE`, icon: AlertCircle };
-    if (diff < 15) return { color: 'bg-orange-50 text-orange-600 border-orange-100', text: `${diff}D LEFT`, icon: Clock };
-    return { color: 'bg-emerald-50 text-emerald-600 border-emerald-100', text: `${diff}D REMAINING`, icon: CheckCircle };
+    if (!deadline) return null;
+    const diff = Math.ceil((new Date(deadline).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24)); 
+    if (diff < 0) return { color: 'text-red-500 border-red-500/20 bg-red-500/5', text: `${Math.abs(diff)}D OVERDUE`, icon: AlertCircle };
+    if (diff < 15) return { color: 'text-orange-500 border-orange-500/20 bg-orange-500/5', text: `${diff}D LEFT`, icon: Clock };
+    return { color: 'text-emerald-500 border-emerald-500/20 bg-emerald-500/5', text: `${diff}D REMAINING`, icon: CheckCircle };
   };
 
   if (loading) return (
-    <div className="flex items-center justify-center min-h-screen bg-slate-50">
-      <div className="flex flex-col items-center gap-4">
-        <div className="w-12 h-12 border-4 border-slate-900 border-t-transparent rounded-full animate-spin"></div>
-        <p className="text-slate-500 font-black animate-pulse uppercase tracking-widest text-[10px]">Opening Court Records...</p>
+    <div className="flex items-center justify-center min-h-screen bg-[#070b14] dark:bg-[#070b14] light:bg-slate-50 high-contrast:bg-black transition-colors duration-500">
+      <div className="flex flex-col items-center gap-6">
+        <div className="w-16 h-16 border-4 border-slate-700 border-t-transparent rounded-full animate-spin shadow-[0_0_30px_rgba(255,255,255,0.1)]"></div>
+        <p className="text-slate-500 font-black animate-pulse uppercase tracking-[0.3em] text-[10px]">Opening Judicial Vault...</p>
       </div>
     </div>
   );
 
   return (
-    <div className="min-h-screen bg-[#F8FAFC]">
+    <div className={`min-h-screen transition-colors duration-500 font-sans selection:bg-slate-500/30 overflow-x-hidden ${
+      theme === 'light' ? 'bg-slate-50 text-slate-900' : 
+      theme === 'high-contrast' ? 'bg-black text-white' : 
+      'bg-[#070b14] text-slate-300'
+    }`}>
       
-      {/* 1. PREMIUM HEADER */}
-      <div className="bg-white border-b border-slate-200 sticky top-0 z-30 px-6 py-4">
-        <div className="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center gap-4">
-          <div className="flex items-center gap-4 w-full md:w-auto">
-            <div className="w-12 h-12 rounded-2xl bg-slate-900 flex items-center justify-center text-white shadow-lg shadow-slate-200 shrink-0">
+      {/* 1. HEADER */}
+      <nav className={`sticky top-0 z-[100] border-b px-6 lg:px-12 py-4 backdrop-blur-2xl transition-all duration-500 ${
+        theme === 'light' ? 'bg-white/80 border-slate-200' : 
+        theme === 'high-contrast' ? 'bg-black border-white' : 
+        'bg-[#070b14]/80 border-white/5'
+      }`}>
+        <div className="max-w-[1440px] mx-auto flex flex-col md:flex-row justify-between items-center gap-6">
+          <div className="flex items-center gap-4 group cursor-pointer" onClick={() => navigate('/')}>
+            <div className={`w-12 h-12 rounded-2xl flex items-center justify-center shadow-2xl transition-all ${
+              theme === 'light' ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-900'
+            }`}>
               <Gavel size={24} />
             </div>
             <div>
-              <h1 className="text-xl font-black text-slate-900 leading-tight">High Court Chambers</h1>
-              <p className="text-slate-500 font-bold text-[10px] uppercase tracking-[0.2em]">Hon'ble Judge {user?.fullName}</p>
+              <h1 className={`text-lg font-black leading-tight tracking-tighter uppercase transition-colors ${theme === 'light' ? 'text-slate-900' : 'text-white'}`}>Nyayasarthi</h1>
+              <p className="text-slate-500 font-bold text-[9px] uppercase tracking-[0.3em]">Judicial Chambers</p>
             </div>
           </div>
 
-          <div className="flex items-center gap-3 w-full md:w-auto justify-end">
-            <div className="bg-slate-100 p-2.5 rounded-xl hover:bg-slate-200 transition-colors cursor-pointer relative group">
+          <div className="flex items-center gap-4 w-full md:w-auto">
+            {/* Theme Toggle */}
+            <button 
+              onClick={toggleTheme}
+              className={`p-2.5 rounded-xl border transition-all flex items-center gap-2 ${
+                theme === 'light' ? 'bg-slate-100 border-slate-200 text-slate-600 hover:bg-slate-200' : 
+                theme === 'high-contrast' ? 'bg-zinc-900 border-white text-white hover:bg-zinc-800' : 
+                'bg-white/5 border-white/10 text-slate-300 hover:bg-white/10'
+              }`}
+              title="Switch Accessibility Mode"
+            >
+              {theme === 'dark' && <Moon size={18} />}
+              {theme === 'light' && <Sun size={18} />}
+              {theme === 'high-contrast' && <Eye size={18} />}
+              <span className="text-[10px] font-black uppercase tracking-widest hidden sm:block">Mode</span>
+            </button>
+
+            <div className={`flex-1 md:flex-none flex items-center gap-2 backdrop-blur-md px-4 py-2.5 rounded-2xl border transition-all ${
+              theme === 'light' ? 'bg-slate-100 border-slate-200' : 
+              theme === 'high-contrast' ? 'bg-zinc-900 border-white' : 
+              'bg-white/5 border-white/10'
+            }`}>
+               < Globe size={14} className="text-slate-500" />
+               <span className={`text-[10px] font-black uppercase tracking-widest ${theme === 'light' ? 'text-slate-700' : 'text-slate-200'}`}>Hon'ble Judge: {user?.fullName}</span>
+            </div>
+            <div className={`p-2.5 rounded-xl border transition-all cursor-pointer relative ${
+              theme === 'light' ? 'bg-slate-100 border-slate-200 hover:bg-slate-200' : 
+              theme === 'high-contrast' ? 'bg-zinc-900 border-white hover:bg-zinc-800' : 
+              'bg-white/5 border-white/10 hover:bg-white/10'
+            }`}>
                <Notifications />
             </div>
-            <div className="px-4 py-2.5 bg-slate-900 text-white rounded-xl flex items-center gap-2 shadow-xl shadow-slate-200">
-              <Lock size={16} className="text-amber-400" />
-              <span className="text-[10px] font-black uppercase tracking-widest">Secure Session</span>
+            <div className={`px-6 py-2.5 rounded-2xl font-black text-[10px] uppercase tracking-[0.2em] flex items-center gap-2 transition-all ${
+              theme === 'light' ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-950'
+            }`}>
+              <Lock size={14} className="text-orange-600" /> Secure Node
             </div>
           </div>
         </div>
-      </div>
+      </nav>
 
-      <div className="max-w-7xl mx-auto p-6 lg:p-8 space-y-10 pb-24">
+      <div className="max-w-[1440px] mx-auto p-6 lg:p-12 space-y-16 pb-32">
         
-        {/* 2. JUDICIAL ANALYTICS */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-          <div className="bg-white p-6 rounded-[32px] shadow-sm border border-slate-100 flex flex-col justify-between group hover:border-slate-900 transition-all">
-            <div className="flex justify-between items-start mb-4">
-              <div className="p-3 bg-slate-50 text-slate-900 rounded-2xl group-hover:scale-110 transition-transform"><Briefcase size={24} /></div>
-              <span className="text-[10px] font-black bg-blue-50 text-blue-600 px-2 py-1 rounded-full uppercase">Active</span>
+        {/* 2. STATS */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 relative z-10">
+          {[
+            { label: 'Active Trials', val: assignedCases.length, icon: Briefcase, color: 'text-indigo-400', bg: 'bg-indigo-500/10', border: 'border-indigo-500/20' },
+            { label: 'Critical Assign', val: unassignedCases.length, icon: AlertCircle, color: 'text-red-400', bg: 'bg-red-500/10', border: 'border-red-500/20' },
+            { label: 'Statutory Backlog', val: stats.backlog, icon: Clock, color: 'text-orange-400', bg: 'bg-orange-500/10', border: 'border-orange-500/20' },
+            { label: 'Resolution Rate', val: '88%', icon: Award, color: 'text-white', bg: 'bg-gradient-to-br from-slate-700 to-slate-900', border: 'border-white/10' }
+          ].map((stat, i) => (
+            <div key={i} className={`p-8 rounded-[2.5rem] border transition-all duration-500 overflow-hidden relative ${
+              theme === 'light' ? 'bg-white border-slate-200 shadow-sm shadow-slate-200' : 
+              theme === 'high-contrast' ? 'bg-zinc-900 border-white' : 
+              `${stat.bg} ${stat.border}`
+            } group`}>
+              <div className={`w-12 h-12 rounded-2xl flex items-center justify-center mb-6 border ${
+                theme === 'light' ? 'bg-slate-50 border-slate-100 text-indigo-600' : 
+                theme === 'high-contrast' ? 'bg-black border-white text-white' : 
+                `${stat.bg} ${stat.color} ${stat.border}`
+              }`}>
+                <stat.icon size={24} />
+              </div>
+              <h3 className={`text-4xl font-black tracking-tighter mb-1 uppercase transition-colors ${theme === 'light' ? 'text-slate-900' : 'text-white'}`}>{stat.val}</h3>
+              <p className={`text-[10px] font-black uppercase tracking-[0.3em] ${theme === 'light' ? 'text-slate-500' : 'text-slate-400'}`}>{stat.label}</p>
             </div>
-            <div>
-              <h3 className="text-4xl font-black text-slate-900 tracking-tighter">{assignedCases.length}</h3>
-              <p className="text-slate-500 text-xs font-bold uppercase mt-1 tracking-wider">Ongoing Trials</p>
-            </div>
-          </div>
-
-          <div className="bg-white p-6 rounded-[32px] shadow-sm border border-slate-100 flex flex-col justify-between group hover:border-red-200 transition-all">
-            <div className="flex justify-between items-start mb-4">
-              <div className="p-3 bg-red-50 text-red-600 rounded-2xl group-hover:scale-110 transition-transform"><AlertCircle size={24} /></div>
-              <span className="text-[10px] font-black bg-red-100 text-red-700 px-2 py-1 rounded-full uppercase">Urgent</span>
-            </div>
-            <div>
-              <h3 className="text-4xl font-black text-slate-900 tracking-tighter">{unassignedCases.length}</h3>
-              <p className="text-slate-500 text-xs font-bold uppercase mt-1 tracking-wider">Awaiting Police</p>
-            </div>
-          </div>
-
-          <div className="bg-white p-6 rounded-[32px] shadow-sm border border-slate-100 flex flex-col justify-between group hover:border-orange-200 transition-all">
-            <div className="flex justify-between items-start mb-4">
-              <div className="p-3 bg-orange-50 text-orange-600 rounded-2xl group-hover:scale-110 transition-transform"><Clock size={24} /></div>
-              <span className="text-[10px] font-black bg-orange-100 text-orange-700 px-2 py-1 rounded-full uppercase">Alert</span>
-            </div>
-            <div>
-              <h3 className="text-4xl font-black text-slate-900 tracking-tighter">{stats.backlog}</h3>
-              <p className="text-slate-500 text-xs font-bold uppercase mt-1 tracking-wider">Statutory Backlog</p>
-            </div>
-          </div>
-
-          <div className="bg-slate-900 p-6 rounded-[32px] shadow-xl shadow-slate-200 flex flex-col justify-between text-white group overflow-hidden relative">
-            <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:rotate-12 transition-transform"><Award size={120} /></div>
-            <div className="z-10 flex justify-between items-start">
-              <div className="p-3 bg-white/10 rounded-2xl"><Activity size={24} /></div>
-              <div className="w-2 h-2 bg-emerald-400 rounded-full animate-pulse mt-2"></div>
-            </div>
-            <div className="z-10">
-              <h3 className="text-2xl font-black tracking-tight tracking-widest uppercase">88%</h3>
-              <p className="text-white/50 text-[10px] font-black uppercase mt-1 tracking-[0.2em]">Disposal Rate</p>
-            </div>
-          </div>
+          ))}
         </div>
 
-        {/* 3. TABS: DOCKET & ANALYTICS */}
-        <div className="bg-white rounded-[40px] shadow-sm border border-slate-100 overflow-hidden">
-          <div className="flex border-b border-slate-100">
-            <button onClick={() => setActiveTab('docket')} className={`flex-1 py-6 text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-3 transition-all ${activeTab === 'docket' ? 'text-slate-900 bg-slate-50' : 'text-slate-400 hover:text-slate-600'}`}><Briefcase size={18} /> Judicial Docket</button>
-            <button onClick={() => setActiveTab('analytics')} className={`flex-1 py-6 text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-3 transition-all ${activeTab === 'analytics' ? 'text-slate-900 bg-slate-50' : 'text-slate-400 hover:text-slate-600'}`}><TrendingUp size={18} /> Pendency Analytics</button>
+        {/* 3. TABS */}
+        <div className={`backdrop-blur-xl rounded-[3rem] border overflow-hidden shadow-2xl transition-all duration-500 ${
+          theme === 'light' ? 'bg-white border-slate-200' : 
+          theme === 'high-contrast' ? 'bg-zinc-900 border-white' : 
+          'bg-white/5 border-white/10'
+        }`}>
+          <div className={`flex border-b ${theme === 'light' ? 'border-slate-100' : 'border-white/5'}`}>
+            {['docket', 'analytics'].map(tab => (
+              <button key={tab} onClick={() => setActiveTab(tab as any)} className={`flex-1 py-8 text-[10px] font-black uppercase tracking-[0.3em] flex items-center justify-center gap-3 transition-all ${activeTab === tab ? (theme === 'light' ? 'text-indigo-600 bg-slate-50' : 'text-white bg-white/5') : 'text-slate-500 hover:text-slate-300'}`}>
+                {tab === 'docket' ? <Briefcase size={18} /> : <TrendingUp size={18} />}
+                {tab.replace('_', ' ')}
+              </button>
+            ))}
           </div>
 
-          <div className="p-8 lg:p-10">
+          <div className="p-8 lg:p-12">
             {activeTab === 'docket' && (
-              <div className="space-y-12 animate-in fade-in slide-in-from-bottom-2 duration-500">
+              <div className="space-y-16 animate-in fade-in slide-in-from-bottom-2 duration-500">
                 
-                {/* UNASSIGNED CASES */}
-                <div className="space-y-6">
+                {/* ACTION REQUIRED */}
+                <div className="space-y-8">
                   <div className="flex items-center justify-between">
-                    <h3 className="text-lg font-black text-slate-900 flex items-center gap-2"><div className="w-1.5 h-6 bg-red-500 rounded-full"></div> Action Required</h3>
-                    <span className="px-3 py-1 bg-red-50 text-red-600 text-[10px] font-black rounded-full border border-red-100 uppercase">{unassignedCases.length} Critical Assignments</span>
+                    <h3 className={`text-xl font-black uppercase tracking-tighter flex items-center gap-4 transition-colors ${theme === 'light' ? 'text-slate-900' : 'text-white'}`}><div className="w-1 h-8 bg-red-500 rounded-full"></div> Critical Assignments</h3>
+                    <span className="px-4 py-2 bg-red-500/10 text-red-500 text-[9px] font-black rounded-xl border border-red-500/20 uppercase tracking-widest">{unassignedCases.length} Pending Officer Matching</span>
                   </div>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     {unassignedCases.map(c => {
                       const timer = getTimerStatus(c.deadlineDate);
                       return (
-                        <div key={c._id} className="p-6 bg-slate-50 rounded-[32px] border border-transparent hover:bg-white hover:border-red-200 hover:shadow-xl hover:shadow-red-50 transition-all duration-500 group">
-                          <div className="flex justify-between items-start mb-4">
+                        <div key={c._id} className={`p-8 rounded-[2.5rem] border transition-all group ${
+                          theme === 'light' ? 'bg-white border-slate-200 hover:border-red-300 hover:shadow-xl' : 
+                          theme === 'high-contrast' ? 'bg-black border-white hover:bg-zinc-900' : 
+                          'bg-white/5 border-white/5 hover:border-red-500/30'
+                        }`}>
+                          <div className="flex justify-between items-start mb-8">
                             <div>
-                              <h4 className="font-black text-slate-900 group-hover:text-red-600 transition-colors uppercase tracking-tight">{c.title}</h4>
-                              <p className="text-[10px] font-black text-slate-400 mt-1 uppercase tracking-widest">#{c.caseNumber}</p>
+                              <h4 className={`text-lg font-black uppercase tracking-tight transition-colors ${theme === 'light' ? 'text-slate-900 group-hover:text-red-600' : 'text-white group-hover:text-red-500'}`}>{c.title}</h4>
+                              <p className="text-[10px] font-black text-slate-500 mt-2 uppercase tracking-widest">Reference Node: {c.caseNumber}</p>
                             </div>
-                            {timer && <span className={`px-2 py-1 rounded-lg text-[8px] font-black uppercase tracking-widest border ${timer.color}`}>{timer.text}</span>}
+                            {timer && <span className={`px-3 py-1 rounded-lg text-[8px] font-black uppercase tracking-widest border ${timer.color}`}>{timer.text}</span>}
                           </div>
-                          <div className="flex gap-2">
-                            <button onClick={() => navigate(`/case/${c._id}`)} className="flex-1 py-3 bg-white border border-slate-200 rounded-2xl text-[10px] font-black text-slate-600 uppercase tracking-widest hover:bg-slate-50 transition-all">Review File</button>
-                            <button onClick={() => { setSelectedCase(c); setAssignModalOpen(true); }} className="flex-1 py-3 bg-slate-900 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-red-600 transition-all shadow-lg shadow-slate-200">Assign Police</button>
+                          <div className="flex gap-3">
+                            <button onClick={() => navigate(`/case/${c._id}`)} className={`flex-1 py-4 border rounded-2xl text-[9px] font-black uppercase tracking-[0.2em] transition-all ${
+                              theme === 'light' ? 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100' : 'bg-white/5 border-white/10 text-slate-300 hover:bg-white/10'
+                            }`}>Review Dossier</button>
+                            <button onClick={() => { setSelectedCase(c); setAssignModalOpen(true); }} className={`flex-1 py-4 rounded-2xl text-[9px] font-black uppercase tracking-[0.2em] transition-all shadow-xl shadow-white/5 ${
+                              theme === 'light' ? 'bg-indigo-600 text-white hover:bg-indigo-700' : 'bg-white text-slate-950 hover:bg-red-600 hover:text-white'
+                            }`}>Assign Police</button>
                           </div>
                         </div>
                       );
@@ -207,41 +241,47 @@ export const JudgeDashboard: React.FC = () => {
                   </div>
                 </div>
 
-                {/* ACTIVE DOCKET */}
-                <div className="space-y-6 pt-6 border-t border-slate-100">
-                  <h3 className="text-lg font-black text-slate-900 flex items-center gap-2"><div className="w-1.5 h-6 bg-indigo-600 rounded-full"></div> Ongoing Proceedings</h3>
-                  <div className="bg-white border border-slate-100 rounded-[32px] overflow-hidden">
+                {/* ONGOING */}
+                <div className="space-y-8 pt-8 border-t border-white/5">
+                  <h3 className={`text-xl font-black uppercase tracking-tighter flex items-center gap-4 transition-colors ${theme === 'light' ? 'text-slate-900' : 'text-white'}`}><div className="w-1 h-8 bg-indigo-500 rounded-full"></div> Ongoing Proceedings</h3>
+                  <div className={`rounded-[3rem] border overflow-hidden transition-all duration-500 ${
+                    theme === 'light' ? 'bg-white border-slate-200 shadow-sm' : 
+                    theme === 'high-contrast' ? 'bg-zinc-900 border-white' : 
+                    'bg-white/5 border-white/5'
+                  }`}>
                     <table className="w-full text-left">
-                      <thead className="bg-slate-50 border-b border-slate-50">
+                      <thead className={`${theme === 'light' ? 'bg-slate-50' : 'bg-white/5'} border-b ${theme === 'light' ? 'border-slate-100' : 'border-white/5'}`}>
                         <tr>
-                          <th className="px-8 py-6 text-[10px] font-black text-slate-400 uppercase tracking-widest">Case Profile</th>
-                          <th className="px-8 py-6 text-[10px] font-black text-slate-400 uppercase tracking-widest">Legal Timer</th>
-                          <th className="px-8 py-6 text-[10px] font-black text-slate-400 uppercase tracking-widest">Court Team</th>
-                          <th className="px-8 py-6 text-right"></th>
+                          <th className="px-10 py-8 text-[10px] font-black text-slate-500 uppercase tracking-[0.3em]">Judicial Profile</th>
+                          <th className="px-10 py-8 text-[10px] font-black text-slate-500 uppercase tracking-[0.3em]">Statutory Timer</th>
+                          <th className="px-10 py-8 text-[10px] font-black text-slate-500 uppercase tracking-[0.3em]">Court Team</th>
+                          <th className="px-10 py-8 text-right"></th>
                         </tr>
                       </thead>
-                      <tbody className="divide-y divide-slate-50">
+                      <tbody className={`divide-y ${theme === 'light' ? 'divide-slate-100' : 'divide-white/5'}`}>
                         {assignedCases.map(c => {
                           const timer = getTimerStatus(c.deadlineDate);
                           return (
-                            <tr key={c._id} className="hover:bg-slate-50/50 transition-colors group">
-                              <td className="px-8 py-6">
-                                <p className="font-black text-slate-900 text-sm uppercase tracking-tight">{c.title}</p>
-                                <p className="text-[10px] font-bold text-slate-400 mt-1 uppercase tracking-widest">#{c.caseNumber}</p>
+                            <tr key={c._id} className={`transition-colors group ${theme === 'light' ? 'hover:bg-slate-50' : 'hover:bg-white/5'}`}>
+                              <td className="px-10 py-8">
+                                <p className={`font-black text-sm uppercase tracking-tight transition-colors ${theme === 'light' ? 'text-slate-900' : 'text-white'}`}>{c.title}</p>
+                                <p className="text-[10px] font-bold text-slate-500 mt-1 uppercase tracking-widest">Node ID: {c.caseNumber}</p>
                               </td>
-                              <td className="px-8 py-6">
+                              <td className="px-10 py-8">
                                 {timer && <span className={`px-3 py-1 rounded-full text-[9px] font-black uppercase border ${timer.color}`}>{timer.text}</span>}
                               </td>
-                              <td className="px-8 py-6">
-                                <div className="flex flex-col gap-1">
-                                  {c.assignedLawyer && <p className="text-[10px] font-black text-slate-600 uppercase flex items-center gap-1.5"><Briefcase size={12} className="text-slate-400"/> Adv. {c.assignedLawyer.fullName.split(' ')[0]}</p>}
-                                  {c.assignedPolice && <p className="text-[10px] font-black text-slate-600 uppercase flex items-center gap-1.5"><Shield size={12} className="text-blue-500"/> Off. {c.assignedPolice.fullName.split(' ')[0]}</p>}
+                              <td className="px-10 py-8">
+                                <div className="flex flex-col gap-2">
+                                  {c.assignedLawyer && <p className="text-[9px] font-black text-slate-400 uppercase flex items-center gap-2"><Briefcase size={12}/> Adv. {c.assignedLawyer.fullName.split(' ')[0]}</p>}
+                                  {c.assignedPolice && <p className="text-[9px] font-black text-slate-400 uppercase flex items-center gap-2"><Shield size={12} className="text-blue-500"/> Off. {c.assignedPolice.fullName.split(' ')[0]}</p>}
                                 </div>
                               </td>
-                              <td className="px-8 py-6 text-right">
-                                <div className="flex justify-end gap-2">
-                                  <button onClick={() => navigate(`/case/${c._id}`)} className="p-3 bg-slate-50 text-slate-400 hover:bg-indigo-600 hover:text-white rounded-2xl transition-all"><ChevronRight size={20} /></button>
-                                  <button onClick={() => handleCloseCase(c._id, c.caseNumber)} className="p-3 bg-emerald-50 text-emerald-600 hover:bg-emerald-600 hover:text-white rounded-2xl transition-all" title="Issue Final Verdict"><Lock size={20} /></button>
+                              <td className="px-10 py-8 text-right">
+                                <div className="flex justify-end gap-3">
+                                  <button onClick={() => navigate(`/case/${c._id}`)} className={`p-4 rounded-2xl transition-all group-hover:shadow-2xl ${
+                                    theme === 'light' ? 'bg-slate-50 text-slate-400 hover:bg-indigo-600 hover:text-white' : 'bg-white/5 text-slate-500 hover:bg-white hover:text-slate-950'
+                                  }`}><ChevronRight size={20} /></button>
+                                  <button onClick={() => handleCloseCase(c._id, c.caseNumber)} className="p-4 bg-emerald-500/10 text-emerald-500 hover:bg-emerald-500 hover:text-white rounded-2xl transition-all border border-emerald-500/20" title="Issue Final Verdict"><Lock size={20} /></button>
                                 </div>
                               </td>
                             </tr>
@@ -255,54 +295,66 @@ export const JudgeDashboard: React.FC = () => {
             )}
 
             {activeTab === 'analytics' && (
-              <div className="space-y-10 animate-in fade-in slide-in-from-bottom-2 duration-500">
-                <div className="bg-slate-900 p-10 rounded-[40px] text-white relative overflow-hidden">
-                  <div className="absolute top-0 right-0 p-10 opacity-10"><TrendingUp size={200} /></div>
+              <div className="space-y-12 animate-in fade-in slide-in-from-bottom-2 duration-500">
+                <div className={`p-12 rounded-[40px] relative overflow-hidden border shadow-2xl transition-all duration-500 ${
+                  theme === 'light' ? 'bg-slate-900 text-white border-slate-800' : 'bg-slate-950 text-white border-white/5'
+                }`}>
+                  <div className="absolute top-0 right-0 p-12 opacity-10 rotate-12"><TrendingUp size={300} /></div>
                   <div className="relative z-10">
-                    <h3 className="text-3xl font-black tracking-tight mb-2">Live Pendency Heatmap</h3>
-                    <p className="text-white/60 text-sm font-medium mb-10 max-w-lg">Real-time visualization of court backlog and statutory deadline distribution under BNSS guidelines.</p>
+                    <h3 className="text-4xl font-black tracking-tighter uppercase mb-4">Statutory Pendency Matrix</h3>
+                    <p className="text-slate-400 text-sm font-medium mb-12 max-w-lg leading-relaxed uppercase tracking-widest">Real-time neural map of court backlog and BNSS compliance nodes.</p>
                     
-                    <div className="grid grid-cols-6 sm:grid-cols-10 lg:grid-cols-15 gap-3">
+                    <div className="grid grid-cols-6 sm:grid-cols-10 lg:grid-cols-15 gap-4">
                       {assignedCases.concat(unassignedCases).map((c, i) => {
                         const today = new Date();
                         const due = new Date(c.deadlineDate);
                         const diff = Math.ceil((due.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
                         return (
-                          <div key={i} onClick={() => navigate(`/case/${c._id}`)} className={`aspect-square rounded-xl transition-all transform hover:scale-125 cursor-pointer shadow-2xl ${getHeatmapColor(diff)}`} title={`${c.title}`}></div>
+                          <div key={i} onClick={() => navigate(`/case/${c._id}`)} className={`aspect-square rounded-2xl transition-all transform hover:scale-125 cursor-pointer shadow-2xl border border-white/10 ${getHeatmapColor(diff)}`} title={`${c.title}`}></div>
                         );
                       })}
                       {Array.from({ length: 30 }).map((_, i) => (
-                        <div key={`f-${i}`} className="aspect-square rounded-xl bg-white/5 border border-white/5 border-dashed"></div>
+                        <div key={`f-${i}`} className="aspect-square rounded-2xl bg-white/5 border border-white/5 border-dashed"></div>
                       ))}
                     </div>
 
-                    <div className="mt-12 flex gap-6 text-[10px] font-black uppercase tracking-widest">
-                      <div className="flex items-center gap-2"><div className="w-3 h-3 rounded-full bg-red-500"></div> Overdue</div>
-                      <div className="flex items-center gap-2"><div className="w-3 h-3 rounded-full bg-orange-400"></div> Critical</div>
-                      <div className="flex items-center gap-2"><div className="w-3 h-3 rounded-full bg-emerald-400"></div> Healthy</div>
+                    <div className="mt-16 flex gap-10 text-[9px] font-black uppercase tracking-[0.3em]">
+                      <div className="flex items-center gap-3"><div className="w-4 h-4 rounded-lg bg-red-500 shadow-lg shadow-red-500/40"></div> Breach</div>
+                      <div className="flex items-center gap-3"><div className="w-4 h-4 rounded-lg bg-orange-500 shadow-lg shadow-orange-500/40"></div> Critical</div>
+                      <div className="flex items-center gap-3"><div className="w-4 h-4 rounded-lg bg-emerald-500 shadow-lg shadow-emerald-500/40"></div> Optimized</div>
                     </div>
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                  <div className="bg-white p-8 rounded-[40px] border border-slate-100 shadow-sm">
-                    <h4 className="font-black text-slate-900 mb-6 flex items-center gap-3"><Shield size={20} className="text-indigo-600"/> Security Audit</h4>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
+                  <div className={`p-10 rounded-[3rem] border shadow-sm transition-all duration-500 ${
+                    theme === 'light' ? 'bg-white border-slate-200' : 'bg-white/5 border-white/5 backdrop-blur-md'
+                  }`}>
+                    <h4 className={`font-black text-lg mb-8 uppercase tracking-tighter flex items-center gap-4 transition-colors ${theme === 'light' ? 'text-slate-900' : 'text-white'}`}><Shield size={20} className="text-indigo-500"/> Node Integrity Audit</h4>
                     <div className="space-y-4">
                       {[1,2,3].map(i => (
-                        <div key={i} className="p-4 bg-slate-50 rounded-[24px] border border-slate-100 flex justify-between items-center">
-                          <p className="text-[10px] font-black text-slate-600 uppercase tracking-tight">Case Digital File Access: Officer {i}</p>
-                          <span className="text-[9px] font-bold text-slate-400">{i}h ago</span>
+                        <div key={i} className={`p-5 rounded-[2rem] border flex justify-between items-center transition-all duration-500 group ${
+                          theme === 'light' ? 'bg-slate-50 border-slate-100 hover:bg-slate-100 hover:text-slate-950' : 'bg-white/5 border-white/5 hover:bg-white hover:text-slate-950'
+                        }`}>
+                          <p className="text-[9px] font-black uppercase tracking-widest">Cryptographic Access Trace: Node 0{i}</p>
+                          <span className="text-[8px] font-black opacity-50 uppercase">{i}h 24m ago</span>
                         </div>
                       ))}
                     </div>
                   </div>
-                  <div className="bg-white p-8 rounded-[40px] border border-slate-100 shadow-sm relative overflow-hidden">
-                    <div className="absolute -right-4 -bottom-4 opacity-5"><Lock size={120} /></div>
-                    <h4 className="font-black text-slate-900 mb-6 flex items-center gap-3"><Award size={20} className="text-slate-900"/> Verdict Signing</h4>
-                    <div className="p-10 text-center border-4 border-dashed border-slate-50 rounded-[32px]">
-                      <Lock size={32} className="mx-auto text-slate-200 mb-4" />
-                      <p className="text-xs font-bold text-slate-400 uppercase tracking-widest leading-relaxed">Connect Aadhaar eSign or Hardware Token to enable digital authentication.</p>
-                      <button className="mt-6 px-8 py-3 bg-slate-900 text-white text-[10px] font-black rounded-2xl hover:bg-indigo-600 transition-all uppercase tracking-widest shadow-xl shadow-slate-200">Initialize eSign</button>
+                  <div className={`p-10 rounded-[3rem] border shadow-sm relative overflow-hidden group transition-all duration-500 ${
+                    theme === 'light' ? 'bg-white border-slate-200' : 'bg-white/5 border-white/5 backdrop-blur-md'
+                  }`}>
+                    <div className="absolute -right-8 -bottom-8 opacity-[0.03] group-hover:rotate-12 transition-transform duration-1000"><Lock size={200} /></div>
+                    <h4 className={`font-black text-lg mb-8 uppercase tracking-tighter flex items-center gap-4 transition-colors ${theme === 'light' ? 'text-slate-900' : 'text-white'}`}><Award size={20} className="text-slate-500"/> Verdict Authentication</h4>
+                    <div className={`p-12 text-center border-2 border-dashed rounded-[2.5rem] transition-all duration-500 ${
+                      theme === 'light' ? 'bg-slate-50 border-slate-200' : 'bg-black/20 border-white/10'
+                    }`}>
+                      <Lock size={40} className="mx-auto text-slate-700 mb-6" />
+                      <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest leading-relaxed max-w-xs mx-auto">Connect eSign Node or Physical Authority Token to enable statutory authentication.</p>
+                      <button className={`mt-8 px-10 py-4 rounded-2xl text-[10px] font-black transition-all uppercase tracking-[0.2em] shadow-2xl ${
+                        theme === 'light' ? 'bg-slate-900 text-white hover:bg-indigo-600' : 'bg-white text-slate-950 hover:bg-indigo-500 hover:text-white'
+                      }`}>Initialize Authority Sync</button>
                     </div>
                   </div>
                 </div>

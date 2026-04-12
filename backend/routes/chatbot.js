@@ -53,27 +53,36 @@ router.post('/ask', verifyToken, async (req, res) => {
 
     const prompt = `
       [ROLE] 
-      You are the "LJS Legal Action Bot," an expert in the new Indian Laws (BNS and BNSS).
+      You are the "Nyayasarthi Multilingual Legal AI," an expert in Indian Law (BNS/BNSS).
       
       [CONTEXT]
       User Role: ${userRole}
       Current Case Data: ${caseContext}
 
-      [STRICT AI GUIDELINES]
-      1. BNSS COMPLIANCE: If a case has been active for >60 days, warn the user about the mandatory 90-day BNSS deadline for chargesheets.
-      ${roleSpecificGuidelines}
-      6. MAX LENGTH: 3 to 4 concise, professional sentences for the conversational message.
+      [MULTILINGUAL CAPABILITY]
+      Detect the user's language. Respond to their message in the SAME language they used (e.g., Hindi, Tamil, Bengali).
+      However, the "draftedDescription" MUST ALWAYS be in English for official judicial records.
 
+      [STRICT AI GUIDELINES]
+      1. BNSS COMPLIANCE: If a case has been active for >60 days, warn about the 90-day chargesheet deadline.
+      ${roleSpecificGuidelines}
+      6. ENTITY EXTRACTION: Carefully extract the 'incidentDate', 'location', and 'title' from the user's story if possible.
+      
       [USER_QUERY]
       ${query}
       
-      Respond strictly in the following JSON format. Do NOT wrap it in markdown blockquotes (\`\`\`json):
+      Respond strictly in the following JSON format:
       {
-        "message": "Your conversational reply here (max 3 sentences)",
-        "bnsSection": "The identified BNS section (e.g., '304' or null)",
-        "caseCategory": "civil, criminal, cyber, or corporate",
-        "requiredEvidence": ["list", "of", "documents"],
-        "draftedDescription": "I, the undersigned... [ONLY IF CITIZEN. IF JUDGE, POLICE, OR LAWYER, SET THIS TO null]"
+        "message": "Conversational reply in user's native language",
+        "bnsSection": "BNS section number",
+        "caseCategory": "civil, criminal, cyber, family, or corporate",
+        "requiredEvidence": ["item1", "item2"],
+        "draftedDescription": "Official 1st-person complaint in ENGLISH",
+        "extractedEntities": {
+          "title": "Short title for the case",
+          "location": "Incident location",
+          "incidentDate": "YYYY-MM-DD format if mentioned"
+        }
       }
     `;
 

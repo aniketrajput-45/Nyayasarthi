@@ -11,7 +11,12 @@ interface ChatbotMessage {
   caseCategory?: string;
   requiredEvidence?: string[];
   originalQuery?: string;
-  draftedDescription?: string; 
+  draftedDescription?: string;
+  extractedEntities?: {
+    title?: string;
+    location?: string;
+    incidentDate?: string;
+  };
 }
 
 export const Chatbot: React.FC = () => {
@@ -112,6 +117,7 @@ export const Chatbot: React.FC = () => {
       let extractedCategory = data.caseCategory;
       let extractedEvidence = data.requiredEvidence;
       let extractedDraft = data.draftedDescription; 
+      let extractedEntities = data.extractedEntities;
 
       const stringToParse = typeof data === 'string' ? data : displayText;
 
@@ -125,6 +131,7 @@ export const Chatbot: React.FC = () => {
           extractedCategory = aiData.caseCategory;
           extractedEvidence = aiData.requiredEvidence;
           extractedDraft = aiData.draftedDescription; 
+          extractedEntities = aiData.extractedEntities;
         } catch (parseError) {
           console.error("Could not parse AI JSON string:", parseError);
         }
@@ -138,6 +145,7 @@ export const Chatbot: React.FC = () => {
         caseCategory: extractedCategory,
         requiredEvidence: extractedEvidence,
         draftedDescription: extractedDraft,
+        extractedEntities: extractedEntities,
         originalQuery: currentQuery
       };
 
@@ -214,7 +222,10 @@ export const Chatbot: React.FC = () => {
                           bnsSection: msg.bnsSection, 
                           type: msg.caseCategory, 
                           requiredEvidence: msg.requiredEvidence,
-                          description: msg.draftedDescription || msg.originalQuery 
+                          description: msg.draftedDescription || msg.originalQuery,
+                          title: msg.extractedEntities?.title || '',
+                          location: msg.extractedEntities?.location || '',
+                          incidentDate: msg.extractedEntities?.incidentDate || ''
                         } 
                       });
                     }}

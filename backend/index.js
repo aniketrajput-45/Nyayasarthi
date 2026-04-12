@@ -66,6 +66,8 @@ const io = new Server(httpServer, {
   },
 });
 
+app.set('io', io);
+
 // --- 3. DATABASE CONNECTION ---
 mongoose.connect(process.env.MONGODB_URI)
   .then(() => console.log('MongoDB connected'))
