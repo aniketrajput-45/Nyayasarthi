@@ -16,7 +16,7 @@ export const Login: React.FC = () => {
     setError('');
     setLoading(true);
 
-     try {
+    try {
       await login(email, password);
       navigate('/dashboard');
     } catch (err) {
@@ -71,7 +71,7 @@ export const Login: React.FC = () => {
               </div>
             </div>
 
-     <button
+            <button
               type="submit"
               disabled={loading}
               className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white font-medium py-2 rounded-lg transition"
