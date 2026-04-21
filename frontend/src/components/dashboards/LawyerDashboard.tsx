@@ -2,9 +2,11 @@ import React, { useEffect, useState } from 'react';
 import { useAuth } from '../../hooks/useAuth';
 import { useTheme } from '../../context/ThemeContext';
 import { useNavigate } from 'react-router-dom';
+import { ProfileModel } from '../ProfileModel'; // <-- ADD THIS IMPORT
+
 import { jsPDF } from 'jspdf';
 import { 
-  Briefcase, Gavel, Clock, TrendingUp, Calendar, 
+  Briefcase, Gavel, Clock, TrendingUp, User as UserIcon, Calendar, 
   Plus, X, CheckCircle, Bell, ChevronRight, Scale, Download,
   Sparkles, Search, MapPin, MousePointer2, ExternalLink, FileText, Globe, ArrowUpRight,
   Sun, Moon, Eye, Award

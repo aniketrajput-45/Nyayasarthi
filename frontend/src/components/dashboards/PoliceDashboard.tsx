@@ -4,13 +4,25 @@ import { useTheme } from '../../context/ThemeContext';
 import { 
   Shield, CheckCircle, MessageSquare, BookOpen, 
   Users, AlertTriangle, FileText, Clock, TrendingUp, MapPin, 
-  ChevronRight, Zap, Sparkles, Map, Target, Globe, Navigation, X,
-  Sun, Moon, Eye
+  ChevronRight, Zap, Sparkles, Map as MapIcon, Target, Globe, Navigation, X,
+  Sun, Moon, Eye, User as UserIcon // <-- ADDED UserIcon
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { PieChart, Pie, Cell, ResponsiveContainer } from 'recharts';
 import { Notifications } from '../Notifications'; 
 import { io } from 'socket.io-client';
+import { ProfileModel } from '../ProfileModel'; // <-- ADDED MODAL IMPORT
+
+import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
+import 'leaflet/dist/leaflet.css';
+import L from 'leaflet';
+
+delete (L.Icon.Default.prototype as any)._getIconUrl;
+L.Icon.Default.mergeOptions({
+  iconRetinaUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon-2x.png',
+  iconUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon.png',
+  shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png',
+});
 
 interface Case {
   _id: string;
@@ -34,6 +46,7 @@ interface SOSAlert {
   lat: string;
   lng: string;
   timestamp: number;
+  targetOfficers?: string[];
 }
 
 export const PoliceDashboard: React.FC = () => {
@@ -46,6 +59,7 @@ export const PoliceDashboard: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'queue' | 'map'>('queue');
   const [sosAlerts, setSosAlerts] = useState<SOSAlert[]>([]);
+  const [isProfileOpen, setIsProfileOpen] = useState(false); // <-- ADDED PROFILE MODAL STATE
 
   const [chartData, setChartData] = useState<any[]>([]);
   const [stats, setStats] = useState({ myActive: 0, stationTotal: 0, unassigned: 0 });
@@ -54,6 +68,11 @@ export const PoliceDashboard: React.FC = () => {
     const socket = io(import.meta.env.VITE_API_URL?.replace('/api', '') || 'http://localhost:5000');
     
     socket.on('sos_alert', (data: any) => {
+      const myId = user?.userId || user?._id;
+      if (data.targetOfficers && !data.targetOfficers.includes(myId)) {
+        return; 
+      }
+
       const newAlert: SOSAlert = {
         id: Math.random().toString(36).substr(2, 9),
         ...data,
@@ -61,34 +80,19 @@ export const PoliceDashboard: React.FC = () => {
       };
       setSosAlerts(prev => [newAlert, ...prev]);
       
-      // Play alert sound if possible
       try {
         const audio = new Audio('https://assets.mixkit.co/active_storage/sfx/2558/2558-preview.mp3');
         audio.play();
-      } catch (e) { console.error("Audio play failed", e); }
+      } catch (e) {}
     });
 
     return () => {
       socket.disconnect();
     };
-  }, []);
+  }, [user]);
 
   const removeAlert = (id: string) => {
     setSosAlerts(prev => prev.filter(a => a.id !== id));
-  };
-
-  const getMapPos = (lat: string, lng: string) => {
-    const l = parseFloat(lat) || 12.9716;
-    const n = parseFloat(lng) || 77.5946;
-    
-    // Mapping 12.96-12.98 and 77.58-77.60 to 0-100%
-    const top = ((12.98 - l) / (0.02)) * 100;
-    const left = ((n - 77.58) / (0.02)) * 100;
-    
-    return { 
-      top: `${Math.max(5, Math.min(95, top))}%`, 
-      left: `${Math.max(5, Math.min(95, left))}%` 
-    };
   };
 
   const prioritizeCases = (cases: Case[]) => {
@@ -133,7 +137,7 @@ export const PoliceDashboard: React.FC = () => {
             { name: 'Station', value: allCases.length - mine.length - unassignedCount, color: '#334155' }  
           ]);
         }
-      } catch (error) { console.error(error); } finally { setLoading(false); }
+      } catch (error) {} finally { setLoading(false); }
     };
     fetchCases();
   }, [token, user]);
@@ -154,7 +158,7 @@ export const PoliceDashboard: React.FC = () => {
       'bg-[#070b14] text-slate-300'
     }`}>
       
-      {/* 1. HEADER */}
+      {/* HEADER */}
       <nav className={`sticky top-0 z-[100] border-b px-6 lg:px-12 py-4 backdrop-blur-2xl transition-all duration-500 ${
         theme === 'light' ? 'bg-white/80 border-slate-200' : 
         theme === 'high-contrast' ? 'bg-black border-white' : 
@@ -172,30 +176,37 @@ export const PoliceDashboard: React.FC = () => {
           </div>
 
           <div className="flex items-center gap-4 w-full md:w-auto">
-            {/* Theme Toggle */}
-            <button 
-              onClick={toggleTheme}
-              className={`p-2.5 rounded-xl border transition-all flex items-center gap-2 ${
+            <button onClick={toggleTheme} className={`p-2.5 rounded-xl border transition-all flex items-center gap-2 ${
                 theme === 'light' ? 'bg-slate-100 border-slate-200 text-slate-600 hover:bg-slate-200' : 
                 theme === 'high-contrast' ? 'bg-zinc-900 border-white text-white hover:bg-zinc-800' : 
                 'bg-white/5 border-white/10 text-slate-300 hover:bg-white/10'
-              }`}
-              title="Switch Accessibility Mode"
-            >
+              }`} title="Switch Accessibility Mode">
               {theme === 'dark' && <Moon size={18} />}
               {theme === 'light' && <Sun size={18} />}
               {theme === 'high-contrast' && <Eye size={18} />}
               <span className="text-[10px] font-black uppercase tracking-widest hidden sm:block">Mode</span>
             </button>
 
-            <div className={`flex-1 md:flex-none flex items-center gap-2 backdrop-blur-md px-4 py-2.5 rounded-2xl border transition-all ${
-              theme === 'light' ? 'bg-slate-100 border-slate-200' : 
-              theme === 'high-contrast' ? 'bg-zinc-900 border-white' : 
-              'bg-white/5 border-white/10'
+            {/* --- ADDED PROFILE MODAL TRIGGER BUTTON FOR POLICE --- */}
+            <button 
+              onClick={() => setIsProfileOpen(true)}
+              className={`flex-1 md:flex-none flex flex-col justify-center backdrop-blur-md px-5 py-2.5 rounded-2xl border transition-all cursor-pointer hover:scale-[1.02] ${
+              theme === 'light' ? 'bg-slate-100 border-slate-200 hover:bg-slate-200' : 
+              theme === 'high-contrast' ? 'bg-zinc-900 border-white hover:bg-zinc-800' : 
+              'bg-white/5 border-white/10 hover:bg-white/10'
             }`}>
-               <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse"></div>
-               <span className={`text-[10px] font-black uppercase tracking-widest ${theme === 'light' ? 'text-slate-700' : 'text-slate-200'}`}>Officer: {user?.fullName}</span>
-            </div>
+               <div className="flex items-center gap-2 mb-0.5">
+                 <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse"></div>
+                 <span className={`text-[10px] font-black uppercase tracking-widest ${theme === 'light' ? 'text-slate-700' : 'text-slate-200'}`}>
+                   {user?.role}: {user?.fullName}
+                 </span>
+               </div>
+               <div className="flex items-center gap-1.5 text-blue-500 max-w-[250px] sm:max-w-[400px]">
+                 <UserIcon size={12} className="shrink-0" />
+                 <span className="text-[9px] font-bold uppercase truncate">View Full Profile & Jurisdictions</span>
+               </div>
+            </button>
+
             <div className={`p-2.5 rounded-xl border transition-all cursor-pointer relative ${
               theme === 'light' ? 'bg-slate-100 border-slate-200 hover:bg-slate-200' : 
               theme === 'high-contrast' ? 'bg-zinc-900 border-white hover:bg-zinc-800' : 
@@ -251,8 +262,8 @@ export const PoliceDashboard: React.FC = () => {
                       <button className="flex-1 py-4 bg-white text-red-600 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-red-50 transition-all shadow-xl shadow-red-900/20">
                         Dispatch Nearest Unit
                       </button>
-                      <button className="px-6 py-4 bg-red-700 text-white rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-red-800 transition-all border border-red-500/50">
-                        Route
+                      <button onClick={() => setActiveTab('map')} className="px-6 py-4 bg-red-700 text-white rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-red-800 transition-all border border-red-500/50">
+                        View Map
                       </button>
                     </div>
                   </div>
@@ -262,7 +273,7 @@ export const PoliceDashboard: React.FC = () => {
           </div>
         )}
 
-        {/* 2. STATS */}
+        {/* STATS SECTION */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 relative z-10">
           {[
             { label: 'Tactical Load', val: stats.myActive, icon: Shield, color: 'text-blue-400', bg: 'bg-blue-500/10', border: 'border-blue-500/20' },
@@ -296,7 +307,7 @@ export const PoliceDashboard: React.FC = () => {
           ))}
         </div>
 
-        {/* 3. TABS: QUEUE & HEATMAP */}
+        {/* TABS: QUEUE & MAP */}
         <div className={`backdrop-blur-xl rounded-[3rem] border overflow-hidden shadow-2xl transition-all duration-500 ${
           theme === 'light' ? 'bg-white border-slate-200' : 
           theme === 'high-contrast' ? 'bg-zinc-900 border-white' : 
@@ -304,10 +315,11 @@ export const PoliceDashboard: React.FC = () => {
         }`}>
           <div className={`flex border-b ${theme === 'light' ? 'border-slate-100' : 'border-white/5'}`}>
             <button onClick={() => setActiveTab('queue')} className={`flex-1 py-8 text-[10px] font-black uppercase tracking-[0.3em] flex items-center justify-center gap-3 transition-all ${activeTab === 'queue' ? (theme === 'light' ? 'text-blue-600 bg-slate-50' : 'text-blue-400 bg-white/5') : 'text-slate-500 hover:text-slate-300'}`}><Zap size={18} /> AI Task Queue</button>
-            <button onClick={() => setActiveTab('map')} className={`flex-1 py-8 text-[10px] font-black uppercase tracking-[0.3em] flex items-center justify-center gap-3 transition-all ${activeTab === 'map' ? (theme === 'light' ? 'text-blue-600 bg-slate-50' : 'text-blue-400 bg-white/5') : 'text-slate-500 hover:text-slate-300'}`}><Map size={18} /> Jurisdiction Heatmap</button>
+            <button onClick={() => setActiveTab('map')} className={`flex-1 py-8 text-[10px] font-black uppercase tracking-[0.3em] flex items-center justify-center gap-3 transition-all ${activeTab === 'map' ? (theme === 'light' ? 'text-blue-600 bg-slate-50' : 'text-blue-400 bg-white/5') : 'text-slate-500 hover:text-slate-300'}`}><MapIcon size={18} /> Jurisdiction Heatmap</button>
           </div>
 
           <div className="p-8 lg:p-12">
+            {/* QUEUE TAB */}
             {activeTab === 'queue' && (
               <div className="space-y-10 animate-in fade-in slide-in-from-bottom-2 duration-500">
                 <div className="flex justify-between items-center">
@@ -353,6 +365,7 @@ export const PoliceDashboard: React.FC = () => {
               </div>
             )}
 
+            {/* MAP TAB */}
             {activeTab === 'map' && (
               <div className="animate-in fade-in slide-in-from-bottom-2 duration-500">
                 <div className={`rounded-[3rem] p-10 relative overflow-hidden min-h-[600px] border shadow-2xl transition-all duration-500 ${
@@ -360,57 +373,42 @@ export const PoliceDashboard: React.FC = () => {
                   theme === 'high-contrast' ? 'bg-black border-white' : 
                   'bg-slate-950 border-white/5'
                 }`}>
-                   <div className="absolute inset-0 opacity-10 pointer-events-none">
-                     <div className="grid grid-cols-10 grid-rows-8 gap-1 h-full w-full">{Array.from({ length: 80 }).map((_, i) => <div key={i} className={`border border-dashed ${theme === 'light' ? 'border-slate-400' : 'border-slate-700'}`} />)}</div>
-                   </div>
                    <div className="relative z-10 h-full">
-                      <h3 className={`font-black text-2xl flex items-center gap-3 uppercase tracking-tighter ${theme === 'light' ? 'text-slate-900' : 'text-white'}`}><Map size={24} className="text-blue-500" /> Jurisdiction Grid</h3>
+                      <h3 className={`font-black text-2xl flex items-center gap-3 uppercase tracking-tighter ${theme === 'light' ? 'text-slate-900' : 'text-white'}`}>
+                        <MapIcon size={24} className="text-blue-500" /> Jurisdiction Real-Time Map
+                      </h3>
                       
-                      <div className={`mt-12 relative h-[400px] w-full border rounded-[2rem] transition-all duration-500 ${
+                      <div className={`mt-12 relative h-[450px] w-full border rounded-[2rem] overflow-hidden transition-all duration-500 z-0 ${
                         theme === 'light' ? 'bg-white border-slate-200 shadow-inner' : 'bg-black/40 border-white/5'
                       }`}>
-                         {/* Static Patrol Unit */}
-                         <div className="absolute bottom-[20%] left-[15%] flex flex-col items-center">
-                            <div className="w-3 h-3 bg-blue-500 rounded-full shadow-[0_0_20px_rgba(59,130,246,1)] animate-ping" />
-                            <p className="text-[7px] font-black text-blue-400 mt-2 uppercase tracking-widest bg-black/50 px-2 py-0.5 rounded">Patrol 42</p>
-                         </div>
-
-                         {/* Dynamic SOS Alerts on Map */}
-                         {sosAlerts.map(alert => {
-                           const pos = getMapPos(alert.lat, alert.lng);
-                           return (
-                             <div 
-                               key={alert.id} 
-                               className="absolute transition-all duration-1000 flex flex-col items-center"
-                               style={{ top: pos.top, left: pos.left }}
-                             >
-                               {/* Pulsating Radar Effect */}
-                               <div className="absolute -inset-8 bg-red-600/20 rounded-full animate-ping pointer-events-none"></div>
-                               <div className="absolute -inset-16 bg-red-600/10 rounded-full animate-ping [animation-delay:0.5s] pointer-events-none"></div>
-                               
-                               <div className="relative">
-                                 <div className="w-8 h-8 bg-red-600 text-white rounded-xl flex items-center justify-center shadow-[0_0_30px_rgba(220,38,38,1)] animate-bounce border border-red-400">
-                                   <AlertTriangle size={16} />
-                                 </div>
-                                 <div className={`absolute -top-12 left-1/2 -translate-x-1/2 px-3 py-1.5 rounded-full shadow-2xl border whitespace-nowrap ${
-                                   theme === 'light' ? 'bg-white text-red-600 border-red-100' : 'bg-zinc-900 text-red-400 border-white/10'
-                                 }`}>
-                                   <p className="text-[8px] font-black uppercase leading-none tracking-tighter">{alert.citizenName}</p>
-                                   <p className="text-[6px] font-bold uppercase mt-0.5 opacity-70">Emergency SOS</p>
-                                 </div>
-                               </div>
-                             </div>
-                           );
-                         })}
-                      </div>
-                   </div>
-                   <div className={`absolute bottom-10 right-10 backdrop-blur-xl p-8 rounded-[2rem] border z-20 transition-all duration-500 ${
-                     theme === 'light' ? 'bg-white/90 border-slate-200 shadow-xl' : 'bg-black/60 border-white/10'
-                   }`}>
-                      <p className={`font-black text-[10px] uppercase tracking-[0.3em] mb-6 ${theme === 'light' ? 'text-slate-900' : 'text-white'}`}>Unit Telemetry</p>
-                      <div className="space-y-4">
-                         <div className="flex justify-between gap-16"><span className="text-[10px] font-bold text-slate-500 uppercase">Active Alerts</span><span className="text-sm font-black text-red-500">{sosAlerts.length}</span></div>
-                         <div className="flex justify-between gap-16"><span className="text-[10px] font-bold text-slate-500 uppercase">Avg Response</span><span className="text-sm font-black text-emerald-400">3.8m</span></div>
+                        <MapContainer 
+                          center={sosAlerts.length > 0 ? [parseFloat(sosAlerts[0].lat), parseFloat(sosAlerts[0].lng)] : [12.9716, 77.5946]} 
+                          zoom={13} 
+                          style={{ height: '100%', width: '100%' }}
+                        >
+                          <TileLayer
+                            url={theme === 'light' 
+                              ? "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                              : "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
+                            }
+                          />
+                          {sosAlerts.map(alert => (
+                            <Marker 
+                              key={alert.id} 
+                              position={[parseFloat(alert.lat), parseFloat(alert.lng)]}
+                              icon={L.divIcon({
+                                className: 'custom-icon',
+                                html: `<div style="background-color: #dc2626; padding: 6px; border-radius: 50%; border: 3px solid white; box-shadow: 0 0 15px rgba(220, 38, 38, 1); color: white; display:flex; align-items:center; justify-content:center; animation: ping 1.5s cubic-bezier(0, 0, 0.2, 1) infinite;">🚨</div>`
+                              })}
+                            >
+                              <Popup>
+                                <div className="font-black text-red-600 uppercase tracking-tighter text-sm mb-1">{alert.citizenName}</div>
+                                <div className="text-xs font-bold text-slate-800">EMERGENCY SOS</div>
+                                <div className="text-xs text-slate-600 mt-1">{alert.location}</div>
+                              </Popup>
+                            </Marker>
+                          ))}
+                        </MapContainer>
                       </div>
                    </div>
                 </div>
@@ -419,7 +417,7 @@ export const PoliceDashboard: React.FC = () => {
           </div>
         </div>
 
-        {/* 4. REGISTRY */}
+        {/* REGISTRY SECTION */}
         <div className="space-y-8">
           <h2 className={`text-2xl font-black uppercase tracking-tighter flex items-center gap-4 transition-colors ${theme === 'light' ? 'text-slate-900' : 'text-white'}`}>
             <div className="w-1 h-8 bg-white rounded-full"></div>
@@ -479,6 +477,13 @@ export const PoliceDashboard: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {/* --- ADDED PROFILE MODAL AT THE BOTTOM --- */}
+      <ProfileModel 
+        isOpen={isProfileOpen} 
+        onClose={() => setIsProfileOpen(false)} 
+        user={user} 
+      />
     </div>
   );
 };

@@ -20,14 +20,73 @@ const generateCaseNumber = async () => {
   return `CASE-${year}-${(count + 1).toString().padStart(3, '0')}`;
 };
 
-// 1. File a new case (Citizen) -> STARTS AS "PENDING LAWYER"
+// Helper function for Haversine Distance
+function getDistanceInKm(lat1, lon1, lat2, lon2) {
+  if (!lat1 || !lon1 || !lat2 || !lon2) return Infinity; // Return infinity if missing GPS
+  const R = 6371;
+  const dLat = (lat2 - lat1) * (Math.PI / 180);
+  const dLon = (lon2 - lon1) * (Math.PI / 180);
+  const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(lat1 * (Math.PI / 180)) * Math.cos(lat2 * (Math.PI / 180)) *
+    Math.sin(dLon / 2) * Math.sin(dLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return R * c;
+}
+
+// 1. File a new case (Citizen) -> AUTO-ROUTES TO NEAREST POLICE & JUDGE
 router.post('/file', verifyToken, checkRole(['citizen']), async (req, res) => {
   try {
     const { 
       title, description, type, location, incidentDate, 
       documents, isProBono, isAnonymous, shareWithLegalAid,
-      bnsSection, aiSuggestedEvidence // <-- FIXED: Destructure these from the request
+      bnsSection, aiSuggestedEvidence,
+      selectedLawyerId, 
+      lat, lng // <-- ADDED: Accept live GPS coordinates from the frontend form
     } = req.body;
+
+    // 1. Get the Citizen filing the case
+    const citizen = await User.findById(req.user.userId);
+    
+    // SMART ROUTING: Use Form GPS first. If missing, fallback to Registered Profile GPS.
+    const routingLat = lat || citizen.lat;
+    const routingLng = lng || citizen.lng;
+
+    // 2. Find ALL Police and Judges
+    const allPolice = await User.find({ role: 'police' });
+    const allJudges = await User.find({ role: 'judge' });
+
+    // 3. Calculate the nearest Police Station
+    let nearestPolice = null;
+    let shortestPoliceDist = Infinity;
+    
+    if (routingLat && routingLng) {
+      allPolice.forEach(officer => {
+        const dist = getDistanceInKm(routingLat, routingLng, officer.lat, officer.lng);
+        if (dist < shortestPoliceDist) {
+          shortestPoliceDist = dist;
+          nearestPolice = officer;
+        }
+      });
+    } else if (allPolice.length > 0) {
+      // Fallback if absolutely no GPS exists
+      nearestPolice = allPolice[0]; 
+    }
+
+    // 4. Calculate the nearest Court (Judge)
+    let nearestJudge = null;
+    let shortestJudgeDist = Infinity;
+
+    if (routingLat && routingLng) {
+      allJudges.forEach(judge => {
+        const dist = getDistanceInKm(routingLat, routingLng, judge.lat, judge.lng);
+        if (dist < shortestJudgeDist) {
+          shortestJudgeDist = dist;
+          nearestJudge = judge;
+        }
+      });
+    } else if (allJudges.length > 0) {
+      nearestJudge = allJudges[0];
+    }
 
     const caseNumber = await generateCaseNumber();
 
@@ -48,36 +107,49 @@ router.post('/file', verifyToken, checkRole(['citizen']), async (req, res) => {
       description,
       type,
       filedBy: req.user.userId,
-      location,
+      location: location || citizen.address || "Unknown Location",
       incidentDate,
       documents: documents || [],
-      status: 'pending_lawyer', 
+      
+      // AUTO-ASSIGNMENT LOGIC
+      assignedPolice: nearestPolice ? nearestPolice._id : null,
+      assignedJudge: nearestJudge ? nearestJudge._id : null,
+      assignedLawyer: selectedLawyerId || null,
+      status: selectedLawyerId ? 'pending_lawyer' : 'filed', 
+      
       isProBono: isProBono || false,
       isAnonymous: isAnonymous || false,
       shareWithLegalAid: shareWithLegalAid || false,
       deadlineDate, 
 
-      // --- FIXED: ADD THESE TO THE NEW CASE OBJECT ---
       bnsSection: bnsSection || null,
       aiSuggestedEvidence: aiSuggestedEvidence || [],
-      // ----------------------------------------------
 
       timeline: [{
         date: new Date(),
-        status: 'pending_lawyer',
+        status: selectedLawyerId ? 'pending_lawyer' : 'filed',
         updatedBy: req.user.userId,
-        notes: 'Case draft created, waiting for lawyer review'
+        notes: `Case filed and automatically routed to nearest jurisdiction based on GPS.`
       }]
     });
 
     await newCase.save();
-    res.status(201).json({ message: 'Case draft filed successfully', case: newCase });
+
+    // 5. Send Notifications to assigned parties
+    const notifications = [];
+    if (nearestPolice) notifications.push({ recipient: nearestPolice._id, message: `New case #${newCase.caseNumber} routed to your station based on jurisdiction.`, type: 'case' });
+    if (nearestJudge) notifications.push({ recipient: nearestJudge._id, message: `New case #${newCase.caseNumber} routed to your court.`, type: 'case' });
+    if (selectedLawyerId) notifications.push({ recipient: selectedLawyerId, message: `Citizen requested your representation for case #${newCase.caseNumber}.`, type: 'case' });
+
+    if(notifications.length > 0) await Notification.insertMany(notifications);
+
+    res.status(201).json({ message: 'Case auto-routed successfully', case: newCase });
   } catch (error) {
     res.status(500).json({ message: 'Error filing case', error: error.message });
   }
 });
 
-// NEW: Route for officials to verify uploaded evidence
+// Route for officials to verify uploaded evidence
 router.put('/:id/verify-evidence', verifyToken, checkRole(['lawyer', 'police']), async (req, res) => {
   try {
     const { documentId, status } = req.body; 
@@ -104,6 +176,7 @@ router.put('/:id/verify-evidence', verifyToken, checkRole(['lawyer', 'police']),
     res.status(500).json({ message: 'Error verifying evidence', error: error.message });
   }
 });
+
 // 2. Get All Cases
 router.get('/', verifyToken, async (req, res) => {
   try {
@@ -113,11 +186,7 @@ router.get('/', verifyToken, async (req, res) => {
     if (req.user.role === 'citizen') {
       query.filedBy = req.user.userId;
     } else if (req.user.role === 'police') {
-      // OLD CODE: query.assignedPolice = req.user.userId; 
-      
-      // NEW CODE: Show ALL active cases so the dashboard isn't empty
-      // We will filter "My Cases" vs "Station Cases" on the frontend
-      query.status = { $in: ['filed', 'under-investigation', 'in-court', 'resolved'] };
+      query.status = { $in: ['filed', 'under-investigation', 'in-court', 'resolved', 'pending_lawyer'] };
     } else if (req.user.role === 'lawyer') {
       query.$or = [
         { assignedLawyer: req.user.userId },
@@ -125,19 +194,16 @@ router.get('/', verifyToken, async (req, res) => {
         { assignedLawyer: null }
       ];
 
-      // If 'acceptedOnly' is true (used for Chat), show ONLY assigned cases.
-      // Otherwise (for Case Registry), show Assigned + Unassigned + Filed By Me.
       if (req.query.acceptedOnly === 'true' || req.query.acceptedOnly === true) {
         query.assignedLawyer = req.user.userId;
       } else {
         query.$or = [
-          { assignedLawyer: req.user.userId },       // 1. Cases assigned to me
-          { assignedLawyer: { $exists: false } },    // 2. Cases with NO lawyer
-          { assignedLawyer: null },                  // 3. (Safety check for null)
-          { filedBy: req.user.userId }               // 4. Cases I FILED myself (NEW)
+          { assignedLawyer: req.user.userId },
+          { assignedLawyer: { $exists: false } },
+          { assignedLawyer: null },
+          { filedBy: req.user.userId }
         ];
       }
-
     } else if (req.user.role === 'judge') {
       query.status = { $in: ['filed', 'under-investigation', 'in-court', 'resolved'] };
     }
@@ -175,18 +241,14 @@ router.get('/:id', verifyToken, async (req, res) => {
 router.put('/:id/assign', verifyToken, checkRole(['judge']), async (req, res) => {
   try {
     const { assignedPolice, assignedLawyer } = req.body;
-    
-    // We populate 'filedBy' so we get the Citizen's ID
     const caseItem = await Case.findById(req.params.id); 
     
     if (!caseItem) return res.status(404).json({ message: 'Case not found' });
 
-    // Update Fields
     if (assignedPolice) caseItem.assignedPolice = assignedPolice;
     if (assignedLawyer) caseItem.assignedLawyer = assignedLawyer;
     if (!caseItem.assignedJudge) caseItem.assignedJudge = req.user.userId; 
 
-    // Status Update Logic
     let updateMessage = "";
     if (assignedPolice && !caseItem.assignedPolice) {
       updateMessage = `Update: An Investigating Officer has been assigned to Case #${caseItem.caseNumber}. Investigation starting now.`;
@@ -198,31 +260,24 @@ router.put('/:id/assign', verifyToken, checkRole(['judge']), async (req, res) =>
     }
 
     await caseItem.save();
-
-    // --- 🔔 THE MAGIC LINE: NOTIFY EVERYONE (Citizen included) ---
     await notifyAllParties(caseItem, updateMessage, 'info');
-    // ------------------------------------------------------------
 
     res.json({ message: 'Assigned and parties notified', case: caseItem });
-    
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: 'Error assigning case' });
   }
 });
-// 5. Claim Case (Lawyer) -> FIXED TO RESOLVE 500 ERROR
+
+// 5. Claim Case (Lawyer)
 router.put('/:caseId/claim-lawyer', verifyToken, checkRole(['lawyer']), async (req, res) => {
   try {
-    console.log("Processing claim for Case ID:", req.params.caseId);
-
-    // Using findById with the correct parameter name from the URL
     const caseData = await Case.findById(req.params.caseId);
     
     if (!caseData) {
       return res.status(404).json({ message: 'Case not found in database' });
     }
 
-    // Update assignment and status
     caseData.assignedLawyer = req.user.userId;
     caseData.status = 'pending_lawyer'; 
 
@@ -234,10 +289,8 @@ router.put('/:caseId/claim-lawyer', verifyToken, checkRole(['lawyer']), async (r
     });
 
     await caseData.save();
-    console.log("Case successfully claimed by Lawyer:", req.user.userId);
     res.json({ message: 'Case accepted successfully', case: caseData });
   } catch (error) {
-    console.error("Internal Server Error in claim-lawyer:", error);
     res.status(500).json({ message: 'Error claiming case', error: error.message });
   }
 });
@@ -286,6 +339,7 @@ router.post('/:id/hearings', verifyToken, async (req, res) => {
     res.status(500).json({ message: 'Error scheduling hearing', error: error.message });
   }
 });
+
 // 8. Submit to Court (Lawyer)
 router.put('/:id/submit-to-court', verifyToken, checkRole(['lawyer']), async (req, res) => {
   try {
@@ -325,7 +379,6 @@ router.post('/:id/investigation-notes', verifyToken, checkRole(['police']), asyn
     
     if (!caseItem) return res.status(404).json({ message: 'Case not found' });
     
-    // Security check: Ensure this officer is assigned to this case
     if (caseItem.assignedPolice?.toString() !== req.user.userId) {
        return res.status(403).json({ message: 'Not authorized for this investigation' });
     }
@@ -351,8 +404,6 @@ router.post('/:id/evidence', verifyToken, checkRole(['police', 'citizen']), asyn
     
     if (!caseItem) return res.status(404).json({ message: 'Case not found' });
 
-    // Compute hash for the file content/URL to ensure integrity
-    // In a real app, we'd hash the actual file buffer. Here we hash the URL/metadata.
     const fileHash = generateHash(fileUrl + fileName + (deviceMetadata || ''));
 
     caseItem.documents.push({
@@ -384,7 +435,6 @@ router.put('/:id/charge-sheet', verifyToken, checkRole(['police']), async (req, 
     const caseItem = await Case.findById(req.params.id);
     if (!caseItem) return res.status(404).json({ message: 'Case not found' });
 
-    // Change status to 'in-court' (Trial Ready)
     caseItem.status = 'in-court';
 
     caseItem.timeline.push({
@@ -407,10 +457,9 @@ router.put('/:id/verdict', verifyToken, checkRole(['judge']), async (req, res) =
     const caseItem = await Case.findById(req.params.id);
     if (!caseItem) return res.status(404).json({ message: 'Case not found' });
 
-    caseItem.status = 'resolved'; // <--- This triggers the 'Verdict' step in timeline
+    caseItem.status = 'resolved'; 
     await caseItem.save();
 
-    // Notify Everyone
     await notifyAllParties(caseItem, `⚖️ VERDICT ISSUED: Case #${caseItem.caseNumber} has been closed by the Judge.`, 'success');
 
     res.json(caseItem);
