@@ -1,8 +1,16 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { useAuth } from '../hooks/useAuth';
-import { AlertCircle, Calendar, CheckCircle, Clock, Gavel, HelpCircle, RefreshCw, Shield, Ticket, User, X, Send } from 'lucide-react';
+import { useTheme } from '../context/ThemeContext';
+import { 
+  AlertCircle, Calendar, CheckCircle, Clock, Gavel, 
+  HelpCircle, RefreshCw, Shield, Ticket, User, X, Send,
+  MessageSquare, Zap, Search, ArrowUpRight, Globe, Moon, Sun, Eye
+} from 'lucide-react';
 
-const getApiUrl = () => import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+const getApiUrl = () => {
+  const base = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+  return base.endsWith('/api') ? base : base.replace(/\/?$/, '') + '/api';
+};
 
 interface CaseItem {
   _id: string;
@@ -36,6 +44,7 @@ function getEnquiryRef(caseItem: CaseItem): string {
 
 export const Chat: React.FC = () => {
   const { token, user } = useAuth();
+  const { theme, toggleTheme } = useTheme();
   const [helpLookup, setHelpLookup] = useState({ caseNumber: '', date: '' });
   const [appliedFilter, setAppliedFilter] = useState<{ caseNumber: string; date: string } | null>(null);
   const [myCases, setMyCases] = useState<CaseItem[]>([]);
@@ -70,7 +79,6 @@ export const Chat: React.FC = () => {
       .finally(() => setCasesLoading(false));
   }, [token, user?.role]);
 
-  // Load messages for the selected case + thread (chat with specific participant)
   useEffect(() => {
     if (!token || !selectedCase?.chatWithUserId) {
       setChatMessages([]);
@@ -155,372 +163,200 @@ export const Chat: React.FC = () => {
         return matchNumber && matchDate;
       });
 
-  // Normalise current user id (AuthContext stores _id, JWT uses userId)
-  const currentUserId = (user as any)?.userId || user?._id || null;
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    setAppliedFilter({ caseNumber: helpLookup.caseNumber, date: helpLookup.date });
-  };
-
-  const handleRefresh = () => {
-    setAppliedFilter(null);
-    setHelpLookup({ caseNumber: '', date: '' });
-  };
-
-  const formatPendingDuration = (createdAt: string) => {
-    const createdTime = new Date(createdAt).getTime();
-    if (!Number.isFinite(createdTime)) return '';
-    const diffMs = Math.max(0, now - createdTime);
-    const totalSeconds = Math.floor(diffMs / 1000);
-    const hours = Math.floor(totalSeconds / 3600);
-    const minutes = Math.floor((totalSeconds % 3600) / 60);
-    const seconds = totalSeconds % 60;
-
-    if (hours > 0) {
-      return `${hours}h ${minutes.toString().padStart(2, '0')}m`;
-    }
-
-    return `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
-  };
-
   const getStatusColor = (status: string) => {
     switch (status) {
-      case 'filed': return 'bg-amber-500/15 text-amber-700 border border-amber-500/30';
-      case 'under-investigation': return 'bg-sky-500/15 text-sky-700 border border-sky-500/30';
-      case 'in-court': return 'bg-orange-500/15 text-orange-700 border border-orange-500/30';
-      case 'resolved': return 'bg-emerald-500/15 text-emerald-700 border border-emerald-500/30';
-      default: return 'bg-slate-500/10 text-slate-700 border border-slate-300';
+      case 'filed': return 'bg-amber-500/15 text-amber-500 border-amber-500/20';
+      case 'under-investigation': return 'bg-blue-500/15 text-blue-400 border-blue-500/20';
+      case 'in-court': return 'bg-orange-500/15 text-orange-400 border-orange-500/20';
+      case 'resolved': return 'bg-emerald-500/15 text-emerald-400 border-emerald-500/20';
+      default: return 'bg-slate-500/10 text-slate-400 border-slate-500/20';
     }
   };
 
   return (
-    <div className="p-8">
-      {/* <h2 className="text-3xl font-bold text-slate-900 mb-8">Case status enquiry</h2> */}
-      <div className="flex items-center justify-between gap-4 mb-8">
-            <div className="flex items-center gap-4">
-              <div className="p-3 rounded-2xl bg-gradient-to-br from-cyan-500 to-indigo-600 text-white shadow-lg shadow-cyan-500/25">
-                <HelpCircle className="w-7 h-7" />
-              </div>
-              <div>
-                <h3 className="text-xl font-bold text-slate-900 tracking-tight">Case status enquiry</h3>
-              </div>
-            </div>
-            <button
-              type="button"
-              onClick={handleRefresh}
-              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl font-medium text-sm text-white bg-gradient-to-r from-cyan-500 to-cyan-600 hover:from-cyan-600 hover:to-cyan-700 shadow-lg shadow-cyan-500/25 transition"
-            >
-              <RefreshCw className="w-4 h-4" />
-              Refresh
-            </button>
+    <div className={`min-h-screen transition-colors duration-500 p-6 lg:p-12 pb-32 space-y-12 ${
+      theme === 'light' ? 'bg-slate-50 text-slate-900' : 
+      theme === 'high-contrast' ? 'bg-black text-white' : 
+      'bg-[#070b14] text-slate-300'
+    }`}>
+      
+      {/* HEADER SECTION */}
+      <div className="flex flex-col md:flex-row items-center justify-between gap-8 mb-12">
+        <div className="flex items-center gap-6">
+          <div className={`p-4 rounded-2xl shadow-2xl transition-all ${
+            theme === 'light' ? 'bg-indigo-600 text-white' : 'bg-white/5 border border-white/10 text-indigo-400'
+          }`}>
+            <MessageSquare size={32} />
           </div>
+          <div>
+            <h2 className={`text-3xl font-black uppercase tracking-tighter transition-colors ${theme === 'light' ? 'text-slate-900' : 'text-white'}`}>Communication Hub</h2>
+            <p className="text-indigo-500 font-bold text-[10px] uppercase tracking-[0.4em] mt-1">Official Statutory Channel</p>
+          </div>
+        </div>
+        <div className="flex items-center gap-4">
+          <button onClick={toggleTheme} className={`p-3 rounded-xl border transition-all ${theme === 'light' ? 'bg-white border-slate-200 text-slate-600' : 'bg-white/5 border-white/10 text-slate-300'}`}>
+            {theme === 'dark' && <Moon size={20} />}
+            {theme === 'light' && <Sun size={20} />}
+            {theme === 'high-contrast' && <Eye size={20} />}
+          </button>
+          <button
+            onClick={() => { setAppliedFilter(null); setHelpLookup({ caseNumber: '', date: '' }); }}
+            className={`flex items-center gap-3 px-6 py-3 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all ${
+              theme === 'light' ? 'bg-indigo-600 text-white hover:bg-indigo-700' : 'bg-white text-slate-950 hover:bg-indigo-500 hover:text-white shadow-xl shadow-white/5'
+            }`}
+          >
+            <RefreshCw size={16} /> Sync Registry
+          </button>
+        </div>
+      </div>
 
       {error && (
-        <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg flex items-start gap-3">
-          <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
-          <p className="text-red-700 text-sm">{error}</p>
+        <div className="p-4 bg-red-500/10 border border-red-500/20 rounded-2xl flex items-center gap-4 text-red-500 animate-in shake duration-500">
+          <AlertCircle size={20} />
+          <p className="text-xs font-black uppercase tracking-widest">{error}</p>
         </div>
       )}
 
-      <div className="max-w-4xl mx-auto space-y-6">
-        <div className="relative rounded-2xl border border-slate-200/80 bg-white/90 backdrop-blur-sm shadow-2xl shadow-slate-300/20 overflow-hidden ring-1 ring-slate-200/50">
-          <div className="absolute inset-0 bg-gradient-to-br from-cyan-500/[0.03] via-transparent to-indigo-500/[0.03]" />
-          <div className="relative p-8">
-            {/* <div className="flex items-center gap-4 mb-8">
-              <div className="p-3 rounded-2xl bg-gradient-to-br from-cyan-500 to-indigo-600 text-white shadow-lg shadow-cyan-500/25">
-                <HelpCircle className="w-7 h-7" />
+      <div className="max-w-[1440px] mx-auto space-y-12">
+        {/* ENQUIRY PORTAL */}
+        <div className={`relative rounded-[3rem] border transition-all duration-500 overflow-hidden shadow-2xl ${
+          theme === 'light' ? 'bg-white border-slate-200 shadow-slate-200/50' : 'bg-white/5 border-white/10'
+        }`}>
+          <div className="absolute inset-0 bg-gradient-to-br from-indigo-500/[0.03] via-transparent to-orange-500/[0.03]" />
+          <div className="relative p-10 lg:p-12">
+            <h3 className={`text-sm font-black uppercase tracking-[0.3em] mb-10 flex items-center gap-3 ${theme === 'light' ? 'text-slate-400' : 'text-slate-500'}`}>
+              <Search size={16} /> Statutory Node Lookup
+            </h3>
+            <form onSubmit={(e) => { e.preventDefault(); setAppliedFilter(helpLookup); }} className="grid grid-cols-1 md:grid-cols-3 gap-8">
+              <div className="space-y-3">
+                <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-2">File Reference</label>
+                <input
+                  type="text"
+                  value={helpLookup.caseNumber}
+                  onChange={(e) => setHelpLookup((f) => ({ ...f, caseNumber: e.target.value }))}
+                  placeholder="CASE-XXXX-000"
+                  className={`w-full p-5 rounded-2xl border transition-all outline-none font-bold text-sm uppercase tracking-wider ${
+                    theme === 'light' ? 'bg-slate-50 border-slate-200 focus:bg-white focus:border-indigo-600' : 'bg-black/20 border-white/5 focus:bg-white/10 focus:border-indigo-500'
+                  }`}
+                />
               </div>
-              <div>
-                <h3 className="text-xl font-bold text-slate-900 tracking-tight">Case status enquiry</h3>
-                <p className="text-sm text-slate-500">Enter Case number and Date to find your case and get the enquiry reference</p>
-              </div>
-            </div> */}
-            <form onSubmit={handleSubmit} className="space-y-6">
-              <div className="grid grid-cols-1 sm:grid-cols-[1fr_1fr_auto] gap-6">
-                <div className="flex flex-col">
-                  <label className="block text-sm font-semibold text-slate-700 mb-2">Case number</label>
+              <div className="space-y-3">
+                <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-2">Filing Timestamp</label>
+                <div className={`relative rounded-2xl border transition-all flex items-center pr-12 ${
+                  theme === 'light' ? 'bg-slate-50 border-slate-200 focus-within:border-indigo-600' : 'bg-black/20 border-white/5 focus-within:border-indigo-500'
+                }`}>
                   <input
-                    type="text"
-                    value={helpLookup.caseNumber}
-                    onChange={(e) => setHelpLookup((f) => ({ ...f, caseNumber: e.target.value }))}
-                    placeholder="Enter a case number"
-                    className="w-full h-12 px-4 py-3 rounded-xl border border-slate-200 bg-slate-50/80 focus:bg-white focus:ring-2 focus:ring-cyan-500/40 focus:border-cyan-500 text-slate-900 placeholder-slate-400 transition font-mono text-sm"
+                    ref={dateInputRef}
+                    type="date"
+                    value={helpLookup.date}
+                    onChange={(e) => setHelpLookup((f) => ({ ...f, date: e.target.value }))}
+                    className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
                   />
+                  <span className={`px-6 py-5 font-bold text-sm ${helpLookup.date ? (theme === 'light' ? 'text-slate-900' : 'text-white') : 'text-slate-500'}`}>
+                    {helpLookup.date ? new Date(helpLookup.date).toLocaleDateString() : 'SELECT DATE'}
+                  </span>
+                  <Calendar size={20} className="absolute right-5 text-slate-500 pointer-events-none" />
                 </div>
-                <div className="flex flex-col">
-                  <label className="block text-sm font-semibold text-slate-700 mb-2">Date</label>
-                  <div className="relative w-full h-12 rounded-xl border border-slate-200 bg-slate-50/80 focus-within:bg-white focus-within:ring-2 focus-within:ring-cyan-500/40 focus-within:border-cyan-500 transition pr-11">
-                    <input
-                      ref={dateInputRef}
-                      type="date"
-                      value={helpLookup.date}
-                      onChange={(e) => setHelpLookup((f) => ({ ...f, date: e.target.value }))}
-                      className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                      aria-label="Enter a date"
-                    />
-                    <span className={`absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none text-sm ${helpLookup.date ? 'text-slate-900' : ''}`}>
-                      {helpLookup.date
-                        ? (() => {
-                            const d = new Date(helpLookup.date + 'T00:00:00');
-                            const m = d.getMonth() + 1;
-                            const day = d.getDate();
-                            const y = d.getFullYear();
-                            return `${m}/${day}/${y}`;
-                          })()
-                        : <span className="text-slate-400">Enter a date</span>}
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => dateInputRef.current?.showPicker?.() ?? dateInputRef.current?.click()}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 p-1 rounded-lg text-slate-400 hover:text-cyan-600 hover:bg-cyan-50 transition cursor-pointer"
-                      aria-label="Open calendar"
-                    >
-                      <Calendar className="w-5 h-5" />
-                    </button>
-                  </div>
-                </div>
-                <div className="flex flex-col">
-                  <label className="block text-sm font-semibold text-slate-700 mb-2 sm:invisible">Submit</label>
-                  <button
-                    type="submit"
-                    className="h-12 w-24 px-4 py-3 rounded-xl font-semibold text-white bg-gradient-to-r from-cyan-500 to-cyan-600 hover:from-cyan-600 hover:to-cyan-700 shadow-lg shadow-cyan-500/25 transition shrink-0 flex items-center justify-center"
-                  >
-                    Submit
-                  </button>
-                </div>
+              </div>
+              <div className="flex items-end">
+                <button
+                  type="submit"
+                  className={`w-full py-5 rounded-2xl font-black text-[10px] uppercase tracking-[0.2em] transition-all shadow-xl ${
+                    theme === 'light' ? 'bg-indigo-600 text-white hover:bg-indigo-700' : 'bg-white text-slate-950 hover:bg-indigo-500 hover:text-white shadow-indigo-500/20'
+                  }`}
+                >
+                  Initiate Search
+                </button>
               </div>
             </form>
           </div> 
         </div>
 
-        <div className="rounded-2xl border border-slate-200/80 bg-white/90 backdrop-blur-sm shadow-xl overflow-hidden ring-1 ring-slate-200/50">
-          <div className="p-4 border-b border-slate-200/80 bg-gradient-to-r from-slate-50 to-cyan-50/30 flex flex-wrap items-center justify-between gap-3">
-            <div>
-              <h3 className="font-bold text-slate-900">
-                {user?.role === 'citizen' ? 'Raised Concern' : user?.role === 'lawyer' ? 'Accepted Cases' : user?.role === 'police' ? 'Accepted cases' : 'Matched cases'}
-              </h3>
-              <p className="text-sm text-slate-500">
-                {matchedCases.length > 0
-                  ? ``
-                  : appliedFilter !== null
-                    ? ''
-                    : user?.role === 'lawyer'
-                      ? 'Only cases you have accepted (Accept Client) appear here. Accept cases from the Cases page to chat.'
-                      : ''}
-              </p>
-            </div>
+        {/* REGISTRY TABLE */}
+        <div className={`rounded-[3rem] border transition-all duration-500 overflow-hidden shadow-2xl ${
+          theme === 'light' ? 'bg-white border-slate-200' : 'bg-white/5 border-white/10'
+        }`}>
+          <div className={`p-8 border-b transition-colors ${theme === 'light' ? 'bg-slate-50 border-slate-100' : 'bg-white/5 border-white/5'}`}>
+            <h3 className={`font-black uppercase tracking-widest text-sm ${theme === 'light' ? 'text-slate-900' : 'text-white'}`}>
+              {user?.role === 'citizen' ? 'Active Case Uplinks' : user?.role === 'lawyer' ? 'Retained Client Nodes' : 'Assigned Case Registry'}
+            </h3>
           </div>
+          
           {casesLoading ? (
-            <div className="p-12 text-center">
-              <div className="inline-block w-8 h-8 border-2 border-cyan-500 border-t-transparent rounded-full animate-spin mb-3" />
-              <p className="text-slate-500 text-sm">Loading your cases...</p>
+            <div className="p-24 text-center">
+              <div className="w-12 h-12 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin mx-auto mb-6" />
+              <p className="text-[10px] font-black uppercase tracking-[0.3em] text-indigo-500">Accessing Legal Stream...</p>
             </div>
           ) : matchedCases.length === 0 ? (
-            <div className="p-12 text-center text-slate-500">
-              <Ticket className="w-12 h-12 mx-auto mb-3 text-slate-300" />
-              <p className="font-medium">
-                {user?.role === 'lawyer' ? 'No accepted cases' : 'No matching cases'}
-              </p>
-              <p className="text-sm mt-1">
-                {user?.role === 'lawyer'
-                  ? 'Accept a client from the Cases page to see them here and start chatting.'
-                  : ' '}
-              </p>
+            <div className="p-24 text-center">
+              <Ticket size={48} className="mx-auto mb-6 text-slate-700 opacity-20" />
+              <p className={`font-black uppercase tracking-widest text-sm ${theme === 'light' ? 'text-slate-900' : 'text-white'}`}>No matching nodes detected</p>
             </div>
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead>
-                  <tr className="bg-slate-50 border-b border-slate-200">
-                    <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">Case number</th>
-                    <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">Title</th>
-                    <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">Type</th>
-                    <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">Status</th>
-                    <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">Date</th>
-                    <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">Help / Enquiry number</th>
+              <table className="w-full text-left">
+                <thead className={`${theme === 'light' ? 'bg-slate-50' : 'bg-white/5'}`}>
+                  <tr className={`border-b transition-colors ${theme === 'light' ? 'border-slate-100' : 'border-white/5'}`}>
+                    <th className="px-8 py-6 text-[10px] font-black text-slate-500 uppercase tracking-widest">Case Reference</th>
+                    <th className="px-8 py-6 text-[10px] font-black text-slate-500 uppercase tracking-widest">Profile</th>
+                    <th className="px-8 py-6 text-[10px] font-black text-slate-500 uppercase tracking-widest">Statutory Phase</th>
+                    <th className="px-8 py-6 text-[10px] font-black text-slate-500 uppercase tracking-widest">Establish Uplink</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-200">
+                <tbody className={`divide-y transition-colors ${theme === 'light' ? 'divide-slate-100' : 'divide-white/5'}`}>
                   {matchedCases.map((c) => (
-                    <tr key={c._id} className="hover:bg-slate-50/80 transition">
-                      <td className="px-4 py-3 text-sm font-mono font-semibold text-slate-900">{c.caseNumber}</td>
-                      <td className="px-4 py-3 text-sm text-slate-900">{c.title}</td>
-                      <td className="px-4 py-3 text-sm text-slate-600 capitalize">{c.type}</td>
-                      <td className="px-4 py-3">
-                        {user?.role === 'citizen' ? (
-                          (c.assignedLawyer && (typeof c.assignedLawyer === 'object' ? c.assignedLawyer._id : c.assignedLawyer)) ? (
-                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium bg-emerald-500/15 text-emerald-700 border border-emerald-500/30">
-                              <CheckCircle className="w-4 h-4" />
-                              Accepted
-                            </span>
-                          ) : (
-                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium bg-red-500/10 text-red-700 border border-red-500/30">
-                              <Clock className="w-4 h-4" />
-                              <span>Pending</span>
-                            </span>
-                          )
-                        ) : user?.role === 'lawyer' ? (
-                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium bg-emerald-500/15 text-emerald-700 border border-emerald-500/30">
-                            <CheckCircle className="w-4 h-4" />
-                            Accepted
-                          </span>
-                        ) : (
-                          <span className={`inline-flex px-2.5 py-1 rounded-lg text-xs font-medium ${getStatusColor(c.status)}`}>
-                            {c.status.replace(/-/g, ' ')}
-                          </span>
-                        )}
+                    <tr key={c._id} className={`transition-all group ${theme === 'light' ? 'hover:bg-slate-50' : 'hover:bg-white/5'}`}>
+                      <td className="px-8 py-8 font-black text-sm text-indigo-500 font-mono">{c.caseNumber}</td>
+                      <td className="px-8 py-8">
+                        <p className={`font-black text-sm uppercase tracking-tight transition-colors ${theme === 'light' ? 'text-slate-900' : 'text-white'}`}>{c.title}</p>
+                        <p className="text-[9px] font-bold text-slate-500 uppercase mt-1 tracking-widest">{c.type} Division • {new Date(c.createdAt).toLocaleDateString()}</p>
                       </td>
-                      <td className="px-4 py-3 text-sm text-slate-600">{new Date(c.createdAt).toLocaleDateString()}</td>
-                      <td className="px-4 py-3">
-                        <div className="flex flex-col gap-1.5">
-                          <div className="flex flex-wrap items-center gap-2">
-                            {user?.role === 'citizen' && (
-                              <>
-                                <button
-                                  type="button"
-                                  onClick={() => getCaseUserId(c.assignedPolice) && setSelectedCase({
-                                    _id: c._id,
-                                    caseNumber: c.caseNumber,
-                                    title: c.title,
-                                    chatWithUserId: getCaseUserId(c.assignedPolice)!,
-                                    chatWithLabel: 'Police',
-                                  })}
-                                  disabled={!getCaseUserId(c.assignedPolice)}
-                                  className="inline-flex items-center gap-1.5 text-sm font-medium text-cyan-600 hover:text-cyan-700 disabled:opacity-50 disabled:cursor-not-allowed disabled:text-slate-400"
-                                  title={getCaseUserId(c.assignedPolice) ? 'Chat with Police' : 'Police not assigned yet'}
-                                >
-                                  <Shield className="w-4 h-4" />
-                                  Police
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => getCaseUserId(c.assignedLawyer) && setSelectedCase({
-                                    _id: c._id,
-                                    caseNumber: c.caseNumber,
-                                    title: c.title,
-                                    chatWithUserId: getCaseUserId(c.assignedLawyer)!,
-                                    chatWithLabel: 'Lawyer',
-                                  })}
-                                  disabled={!getCaseUserId(c.assignedLawyer)}
-                                  className="inline-flex items-center gap-1.5 text-sm font-medium text-cyan-600 hover:text-cyan-700 disabled:opacity-50 disabled:cursor-not-allowed disabled:text-slate-400"
-                                  title={getCaseUserId(c.assignedLawyer) ? 'Chat with Lawyer' : 'Lawyer not assigned yet'}
-                                >
-                                  <Gavel className="w-4 h-4" />
-                                  Lawyer
-                                </button>
-                              </>
-                            )}
-                            {user?.role === 'police' && (
-                              <>
-                                {getCaseUserId(c.assignedLawyer) && (
-                                  <button
-                                    type="button"
-                                    onClick={() => setSelectedCase({
-                                      _id: c._id,
-                                      caseNumber: c.caseNumber,
-                                      title: c.title,
-                                      chatWithUserId: getCaseUserId(c.assignedLawyer)!,
-                                      chatWithLabel: 'Lawyer',
-                                    })}
-                                    className="inline-flex items-center gap-1.5 text-sm font-medium text-cyan-600 hover:text-cyan-700"
-                                  >
-                                    <Gavel className="w-4 h-4" />
-                                    Lawyer
-                                  </button>
-                                )}
-                                {getCaseUserId(c.filedBy) && (
-                                  <button
-                                    type="button"
-                                    onClick={() => setSelectedCase({
-                                      _id: c._id,
-                                      caseNumber: c.caseNumber,
-                                      title: c.title,
-                                      chatWithUserId: getCaseUserId(c.filedBy)!,
-                                      chatWithLabel: 'Citizen',
-                                    })}
-                                    className="inline-flex items-center gap-1.5 text-sm font-medium text-cyan-600 hover:text-cyan-700"
-                                  >
-                                    <User className="w-4 h-4" />
-                                    Citizen
-                                  </button>
-                                )}
-                              </>
-                            )}
-                            {user?.role === 'lawyer' && (
-                              <>
-                                <button
-                                  type="button"
-                                  onClick={() => getCaseUserId(c.assignedPolice) && setSelectedCase({
-                                    _id: c._id,
-                                    caseNumber: c.caseNumber,
-                                    title: c.title,
-                                    chatWithUserId: getCaseUserId(c.assignedPolice)!,
-                                    chatWithLabel: 'Police',
-                                  })}
-                                  disabled={!getCaseUserId(c.assignedPolice)}
-                                  className="inline-flex items-center gap-1.5 text-sm font-medium text-cyan-600 hover:text-cyan-700 disabled:opacity-50 disabled:cursor-not-allowed disabled:text-slate-400"
-                                  title={getCaseUserId(c.assignedPolice) ? 'Chat with Police' : 'Police not assigned yet'}
-                                >
-                                  <Shield className="w-4 h-4" />
-                                  Police
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => getCaseUserId(c.assignedJudge) && setSelectedCase({
-                                    _id: c._id,
-                                    caseNumber: c.caseNumber,
-                                    title: c.title,
-                                    chatWithUserId: getCaseUserId(c.assignedJudge)!,
-                                    chatWithLabel: 'Judge',
-                                  })}
-                                  disabled={!getCaseUserId(c.assignedJudge)}
-                                  className="inline-flex items-center gap-1.5 text-sm font-medium text-cyan-600 hover:text-cyan-700 disabled:opacity-50 disabled:cursor-not-allowed disabled:text-slate-400"
-                                  title={getCaseUserId(c.assignedJudge) ? 'Chat with Judge' : 'Judge not assigned yet'}
-                                >
-                                  <Gavel className="w-4 h-4" />
-                                  Judge
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => getCaseUserId(c.filedBy) && setSelectedCase({
-                                    _id: c._id,
-                                    caseNumber: c.caseNumber,
-                                    title: c.title,
-                                    chatWithUserId: getCaseUserId(c.filedBy)!,
-                                    chatWithLabel: 'Citizen',
-                                  })}
-                                  disabled={!getCaseUserId(c.filedBy)}
-                                  className="inline-flex items-center gap-1.5 text-sm font-medium text-cyan-600 hover:text-cyan-700 disabled:opacity-50 disabled:cursor-not-allowed disabled:text-slate-400"
-                                  title={getCaseUserId(c.filedBy) ? 'Chat with Citizen' : 'Citizen not available'}
-                                >
-                                  <User className="w-4 h-4" />
-                                  Citizen
-                                </button>
-                              </>
-                            )}
-                            {user?.role === 'judge' && (
+                      <td className="px-8 py-8">
+                        <span className={`px-3 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest border ${getStatusColor(c.status)}`}>
+                          {c.status.replace(/-/g, ' ')}
+                        </span>
+                      </td>
+                      <td className="px-8 py-8">
+                        <div className="flex flex-wrap gap-2">
+                          {user?.role === 'citizen' && (
+                            <>
                               <button
-                                type="button"
-                                onClick={() => getCaseUserId(c.assignedLawyer) && setSelectedCase({
-                                  _id: c._id,
-                                  caseNumber: c.caseNumber,
-                                  title: c.title,
-                                  chatWithUserId: getCaseUserId(c.assignedLawyer)!,
-                                  chatWithLabel: 'Lawyer',
-                                })}
-                                disabled={!getCaseUserId(c.assignedLawyer)}
-                                className="inline-flex items-center gap-1.5 text-sm font-medium text-cyan-600 hover:text-cyan-700 disabled:opacity-50 disabled:cursor-not-allowed disabled:text-slate-400"
-                                title={getCaseUserId(c.assignedLawyer) ? 'Chat with Lawyer' : 'Lawyer not assigned yet'}
+                                onClick={() => getCaseUserId(c.assignedPolice) && setSelectedCase({ _id: c._id, caseNumber: c.caseNumber, title: c.title, chatWithUserId: getCaseUserId(c.assignedPolice)!, chatWithLabel: 'Investigating Officer' })}
+                                disabled={!getCaseUserId(c.assignedPolice)}
+                                className={`flex items-center gap-2 px-4 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest border transition-all ${
+                                  getCaseUserId(c.assignedPolice) ? 'bg-white/5 border-white/10 text-slate-300 hover:bg-white/10 hover:text-white' : 'opacity-20 cursor-not-allowed border-slate-800'
+                                }`}
                               >
-                                <Gavel className="w-4 h-4" />
-                                Lawyer
+                                <Shield size={14} className="text-blue-500" /> Police
                               </button>
-                            )}
-                          </div>
-                          <span className="font-mono text-xs text-slate-600">
-                            {getEnquiryRef(c)}
-                          </span>
+                              <button
+                                onClick={() => getCaseUserId(c.assignedLawyer) && setSelectedCase({ _id: c._id, caseNumber: c.caseNumber, title: c.title, chatWithUserId: getCaseUserId(c.assignedLawyer)!, chatWithLabel: 'Legal Counsel' })}
+                                disabled={!getCaseUserId(c.assignedLawyer)}
+                                className={`flex items-center gap-2 px-4 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest border transition-all ${
+                                  getCaseUserId(c.assignedLawyer) ? 'bg-white/5 border-white/10 text-slate-300 hover:bg-white/10 hover:text-white' : 'opacity-20 cursor-not-allowed border-slate-800'
+                                }`}
+                              >
+                                <Gavel size={14} className="text-orange-500" /> Lawyer
+                              </button>
+                            </>
+                          )}
+                          {user?.role === 'police' && (
+                            <>
+                              {getCaseUserId(c.assignedLawyer) && (
+                                <button onClick={() => setSelectedCase({ _id: c._id, caseNumber: c.caseNumber, title: c.title, chatWithUserId: getCaseUserId(c.assignedLawyer)!, chatWithLabel: 'Legal Counsel' })} className="flex items-center gap-2 px-4 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest border border-white/10 bg-white/5 text-slate-300 hover:bg-white/10"><Gavel size={14}/> Lawyer</button>
+                              )}
+                              {getCaseUserId(c.filedBy) && (
+                                <button onClick={() => setSelectedCase({ _id: c._id, caseNumber: c.caseNumber, title: c.title, chatWithUserId: getCaseUserId(c.filedBy)!, chatWithLabel: 'Citizen' })} className="flex items-center gap-2 px-4 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest border border-white/10 bg-white/5 text-slate-300 hover:bg-white/10"><User size={14}/> Citizen</button>
+                              )}
+                            </>
+                          )}
+                          {user?.role === 'lawyer' && (
+                            <>
+                              <button onClick={() => getCaseUserId(c.assignedPolice) && setSelectedCase({ _id: c._id, caseNumber: c.caseNumber, title: c.title, chatWithUserId: getCaseUserId(c.assignedPolice)!, chatWithLabel: 'Investigating Officer' })} disabled={!getCaseUserId(c.assignedPolice)} className={`flex items-center gap-2 px-4 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest border transition-all ${getCaseUserId(c.assignedPolice) ? 'bg-white/5 border-white/10 text-slate-300 hover:bg-white/10' : 'opacity-20 border-slate-800'}`}><Shield size={14}/> Police</button>
+                              <button onClick={() => getCaseUserId(c.assignedJudge) && setSelectedCase({ _id: c._id, caseNumber: c.caseNumber, title: c.title, chatWithUserId: getCaseUserId(c.assignedJudge)!, chatWithLabel: 'Presiding Judge' })} disabled={!getCaseUserId(c.assignedJudge)} className={`flex items-center gap-2 px-4 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest border transition-all ${getCaseUserId(c.assignedJudge) ? 'bg-white/5 border-white/10 text-slate-300 hover:bg-white/10' : 'opacity-20 border-slate-800'}`}><Zap size={14}/> Judge</button>
+                              <button onClick={() => getCaseUserId(c.filedBy) && setSelectedCase({ _id: c._id, caseNumber: c.caseNumber, title: c.title, chatWithUserId: getCaseUserId(c.filedBy)!, chatWithLabel: 'Citizen' })} disabled={!getCaseUserId(c.filedBy)} className={`flex items-center gap-2 px-4 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest border transition-all ${getCaseUserId(c.filedBy) ? 'bg-white/5 border-white/10 text-slate-300 hover:bg-white/10' : 'opacity-20 border-slate-800'}`}><User size={14}/> Citizen</button>
+                            </>
+                          )}
                         </div>
                       </td>
                     </tr>
@@ -532,74 +368,60 @@ export const Chat: React.FC = () => {
         </div>
       </div>
 
-      {/* Case chat panel – same thread for citizen and lawyer */}
+      {/* COMMUNICATION PANEL */}
       {selectedCase && (
-        <div className="fixed inset-0 z-50 flex justify-end bg-black/30" onClick={() => setSelectedCase(null)}>
+        <div className="fixed inset-0 z-[200] flex justify-end bg-black/60 backdrop-blur-md animate-in fade-in duration-500" onClick={() => setSelectedCase(null)}>
           <div
-            className="w-full max-w-md bg-white shadow-2xl flex flex-col h-full"
+            className={`w-full max-w-xl shadow-[0_0_100px_rgba(0,0,0,0.5)] flex flex-col h-full animate-in slide-in-from-right-full duration-700 transition-colors ${
+              theme === 'light' ? 'bg-white' : 'bg-[#0a0f1d]'
+            }`}
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="p-4 border-b border-slate-200 flex items-center justify-between bg-gradient-to-r from-cyan-50 to-slate-50">
-              <div>
-                <h3 className="font-bold text-slate-900">{selectedCase.caseNumber}</h3>
-                <p className="text-sm text-slate-600 truncate max-w-[240px]">{selectedCase.title}</p>
-                <p className="text-xs text-cyan-600 font-medium mt-0.5">Chat with {selectedCase.chatWithLabel}</p>
+            {/* PANEL HEADER */}
+            <div className={`p-10 border-b flex items-center justify-between transition-colors ${
+              theme === 'light' ? 'bg-slate-50 border-slate-100' : 'bg-white/5 border-white/5'
+            }`}>
+              <div className="space-y-2">
+                <div className="flex items-center gap-4">
+                  <div className="w-10 h-10 rounded-xl bg-indigo-600 flex items-center justify-center text-white shadow-xl shadow-indigo-500/30"><MessageSquare size={20}/></div>
+                  <h3 className={`text-xl font-black uppercase tracking-tighter transition-colors ${theme === 'light' ? 'text-slate-900' : 'text-white'}`}>{selectedCase.caseNumber}</h3>
+                </div>
+                <p className="text-[10px] font-black text-indigo-500 uppercase tracking-widest ml-14">Communication with {selectedCase.chatWithLabel}</p>
               </div>
-              <div className="flex items-center gap-1">
-                <button
-                  type="button"
-                  onClick={() => fetchMessages()}
-                  className="p-2 rounded-lg hover:bg-slate-200 text-slate-600"
-                  title="Refresh messages"
-                >
-                  <RefreshCw className="w-5 h-5" />
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setSelectedCase(null)}
-                  className="p-2 rounded-lg hover:bg-slate-200 text-slate-600"
-                >
-                  <X className="w-5 h-5" />
-                </button>
+              <div className="flex items-center gap-3">
+                <button onClick={fetchMessages} className={`p-4 rounded-2xl transition-all ${theme === 'light' ? 'bg-white border-slate-200 text-slate-400 hover:text-indigo-600' : 'bg-white/5 border-white/5 text-slate-500 hover:text-white'}`}><RefreshCw size={20} /></button>
+                <button onClick={() => setSelectedCase(null)} className={`p-4 rounded-2xl transition-all ${theme === 'light' ? 'bg-white border-slate-200 text-slate-400 hover:text-red-500' : 'bg-white/5 border-white/5 text-slate-500 hover:text-red-500'}`}><X size={20} /></button>
               </div>
             </div>
-            {chatError && (
-              <div className="mx-4 mt-2 p-2 bg-red-50 border border-red-200 rounded-lg flex items-center gap-2 text-red-700 text-sm">
-                <AlertCircle className="w-4 h-4 flex-shrink-0" />
-                {chatError}
-              </div>
-            )}
-            <div className="flex-1 overflow-y-auto p-4 space-y-3 min-h-0">
+
+            {/* MESSAGES STREAM */}
+            <div className={`flex-1 overflow-y-auto p-10 space-y-8 custom-scrollbar ${theme === 'light' ? 'bg-slate-50/50' : 'bg-transparent'}`}>
               {chatLoading ? (
-                <div className="flex justify-center py-8">
-                  <div className="w-8 h-8 border-2 border-cyan-500 border-t-transparent rounded-full animate-spin" />
+                <div className="flex flex-col items-center justify-center h-full gap-4">
+                  <div className="w-10 h-10 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin" />
+                  <p className="text-[9px] font-black text-indigo-500 uppercase tracking-widest">Decrypting Stream...</p>
                 </div>
               ) : chatMessages.length === 0 ? (
-                <p className="text-slate-500 text-sm text-center py-6">No messages yet. Start the conversation.</p>
+                <div className="h-full flex flex-col items-center justify-center text-center space-y-6 opacity-20">
+                   <Zap size={64} className="text-slate-500" />
+                   <p className="text-[10px] font-black uppercase tracking-widest">Secure session initialized. Waiting for transmission.</p>
+                </div>
               ) : (
                 chatMessages.map((msg) => {
                   const isMe = user?._id && msg.senderId?._id === user._id;
                   return (
-                    <div
-                      key={msg._id}
-                      className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}
-                    >
-                      <div
-                        className={`max-w-[85%] rounded-2xl px-4 py-2 ${
-                          isMe
-                            ? 'bg-cyan-600 text-white'
-                            : 'bg-slate-100 text-slate-900'
-                        }`}
-                      >
+                    <div key={msg._id} className={`flex flex-col ${isMe ? 'items-end' : 'items-start'} space-y-3`}>
+                      <div className={`max-w-[85%] rounded-[2rem] p-6 shadow-2xl transition-all ${
+                        isMe ? 'bg-indigo-600 text-white rounded-tr-none' : (theme === 'light' ? 'bg-white border border-slate-100 text-slate-900 rounded-tl-none' : 'bg-white/5 border border-white/5 text-slate-200 rounded-tl-none')
+                      }`}>
                         {!isMe && (
-                          <p className="text-xs font-medium text-slate-500 mb-0.5">
-                            {msg.senderId?.fullName || 'Unknown'}
-                          </p>
+                          <p className="text-[8px] font-black text-indigo-500 uppercase tracking-[0.2em] mb-3">Verified Source: {msg.senderId?.fullName || 'Unknown'}</p>
                         )}
-                        <p className="text-sm whitespace-pre-wrap break-words">{msg.message}</p>
-                        <p className={`text-xs mt-1 ${isMe ? 'text-cyan-100' : 'text-slate-400'}`}>
-                          {new Date(msg.createdAt).toLocaleString()}
-                        </p>
+                        <p className="text-sm font-medium leading-relaxed whitespace-pre-wrap break-words">{msg.message}</p>
+                        <div className={`mt-4 pt-4 border-t flex justify-between items-center gap-10 ${isMe ? 'border-white/10' : 'border-white/5'}`}>
+                           <span className={`text-[7px] font-black uppercase tracking-widest ${isMe ? 'text-indigo-200' : 'text-slate-500'}`}>{new Date(msg.createdAt).toLocaleString()}</span>
+                           <Globe size={10} className={isMe ? 'text-indigo-200' : 'text-slate-600'} />
+                        </div>
                       </div>
                     </div>
                   );
@@ -607,26 +429,27 @@ export const Chat: React.FC = () => {
               )}
               <div ref={messagesEndRef} />
             </div>
-            <form onSubmit={handleSendMessage} className="p-4 border-t border-slate-200 bg-slate-50">
-              <div className="flex gap-2">
+
+            {/* INPUT HUB */}
+            <div className={`p-8 border-t transition-colors ${theme === 'light' ? 'bg-white border-slate-100' : 'bg-white/5 border-white/5'}`}>
+              <form onSubmit={handleSendMessage} className="relative group">
                 <input
-                  type="text"
-                  value={chatInput}
-                  onChange={(e) => setChatInput(e.target.value)}
-                  placeholder="Type a message..."
-                  className="flex-1 px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 text-slate-900 placeholder-slate-400"
+                  type="text" value={chatInput} onChange={(e) => setChatInput(e.target.value)} placeholder="Node Communication..."
+                  className={`w-full pl-8 pr-20 py-6 rounded-[2rem] border transition-all outline-none font-bold text-sm uppercase tracking-wider ${
+                    theme === 'light' ? 'bg-slate-50 border-slate-200 text-slate-900 focus:bg-white focus:border-indigo-600' : 'bg-black border-white/10 text-white focus:bg-white/5 focus:border-indigo-500'
+                  }`}
                   disabled={chatSending}
                 />
                 <button
-                  type="submit"
-                  disabled={chatSending || !chatInput.trim()}
-                  className="px-4 py-3 rounded-xl bg-cyan-600 hover:bg-cyan-700 disabled:opacity-50 text-white font-medium flex items-center gap-2"
+                  type="submit" disabled={chatSending || !chatInput.trim()}
+                  className={`absolute right-3 top-1/2 -translate-y-1/2 p-4 rounded-2xl transition-all shadow-xl ${
+                    chatSending || !chatInput.trim() ? 'opacity-20 cursor-not-allowed' : 'bg-indigo-600 text-white hover:scale-105 active:scale-95 shadow-indigo-500/30'
+                  }`}
                 >
-                  <Send className="w-5 h-5" />
-                  Send
+                  {chatSending ? <RefreshCw size={20} className="animate-spin" /> : <Send size={20} />}
                 </button>
-              </div>
-            </form>
+              </form>
+            </div>
           </div>
         </div>
       )}

@@ -26,6 +26,7 @@ export const Register: React.FC = () => {
   const [badgeNumber, setBadgeNumber] = useState('');
   const [licenseNumber, setLicenseNumber] = useState('');
   const [courtAssignment, setCourtAssignment] = useState('');
+  const [specialization, setSpecialization] = useState('');
   const [role, setRole] = useState('citizen');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -54,7 +55,8 @@ export const Register: React.FC = () => {
         aadhaarNumber,
         badgeNumber,
         licenseNumber,
-        courtAssignment
+        courtAssignment,
+        specialization
       );
       navigate('/dashboard');
     } catch (err) {
@@ -203,7 +205,10 @@ export const Register: React.FC = () => {
                   <label key={r.id} className="cursor-pointer group">
                     <input
                       type="radio" name="role" value={r.id} checked={role === r.id}
-                      onChange={(e) => setRole(e.target.value)} className="sr-only"
+                      onChange={(e) => {
+                        setRole(e.target.value);
+                        if(e.target.value !== 'lawyer') setSpecialization('');
+                      }} className="sr-only"
                     />
                     <div className={`p-4 rounded-2xl border-2 transition-all duration-500 flex flex-col items-center gap-2 text-center h-full ${
                       role === r.id
@@ -230,25 +235,67 @@ export const Register: React.FC = () => {
                   <span className="text-[10px] font-black text-indigo-500 uppercase tracking-[0.3em]">Statutory Verification Required</span>
                 </div>
                 
-                <div className="space-y-2">
-                  <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] ml-2">
-                    {role === 'police' ? 'Badge Number' : role === 'lawyer' ? 'Bar License UID' : 'Court Assignment Node'}
-                  </label>
-                  <input
-                    type="text" 
-                    value={role === 'police' ? badgeNumber : role === 'lawyer' ? licenseNumber : courtAssignment} 
-                    onChange={(e) => {
-                      if(role === 'police') setBadgeNumber(e.target.value);
-                      else if(role === 'lawyer') setLicenseNumber(e.target.value);
-                      else setCourtAssignment(e.target.value);
-                    }} 
-                    required
-                    className={`w-full px-6 py-4 border rounded-2xl outline-none font-bold text-sm uppercase tracking-widest ${
-                      theme === 'light' ? 'bg-white border-slate-200 text-slate-900 focus:border-indigo-600' : 
-                      'bg-[#070b14] border-white/10 text-white focus:border-indigo-500'
-                    }`}
-                    placeholder={role === 'police' ? 'POL-00000' : role === 'lawyer' ? 'BAR/2026/000' : 'E.G. HIGH COURT KARNATAKA'}
-                  />
+                <div className="space-y-6">
+                  {role === 'police' && (
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] ml-2">Badge Number</label>
+                      <input
+                        type="text" value={badgeNumber} onChange={(e) => setBadgeNumber(e.target.value)} required
+                        className={`w-full px-6 py-4 border rounded-2xl outline-none font-bold text-sm uppercase tracking-widest ${
+                          theme === 'light' ? 'bg-white border-slate-200 text-slate-900 focus:border-indigo-600' : 
+                          'bg-[#070b14] border-white/10 text-white focus:border-indigo-500'
+                        }`}
+                        placeholder="POL-00000"
+                      />
+                    </div>
+                  )}
+                  {role === 'lawyer' && (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                      <div className="space-y-2">
+                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] ml-2">Bar License UID</label>
+                        <input
+                          type="text" value={licenseNumber} onChange={(e) => setLicenseNumber(e.target.value)} required
+                          className={`w-full px-6 py-4 border rounded-2xl outline-none font-bold text-sm uppercase tracking-widest ${
+                            theme === 'light' ? 'bg-white border-slate-200 text-slate-900 focus:border-indigo-600' : 
+                            'bg-[#070b14] border-white/10 text-white focus:border-indigo-500'
+                          }`}
+                          placeholder="BAR/2026/000"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] ml-2">Specialization</label>
+                        <select
+                          value={specialization} onChange={(e) => setSpecialization(e.target.value)} required
+                          className={`w-full px-6 py-4 border rounded-2xl outline-none font-bold text-sm uppercase tracking-widest cursor-pointer appearance-none ${
+                            theme === 'light' ? 'bg-white border-slate-200 text-slate-900 focus:border-indigo-600' : 
+                            'bg-[#070b14] border-white/10 text-white focus:border-indigo-500'
+                          }`}
+                        >
+                          <option value="">Select Domain...</option>
+                          <option value="criminal">Criminal Law</option>
+                          <option value="civil">Civil Litigation</option>
+                          <option value="cyber">Cyber Security</option>
+                          <option value="family">Family Matters</option>
+                          <option value="corporate">Corporate Law</option>
+                          <option value="commercial">Commercial Law</option>
+                          <option value="property">Property Law</option>
+                          <option value="general">General Practice</option>                        </select>
+                      </div>
+                    </div>
+                  )}
+                  {role === 'judge' && (
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] ml-2">Court Assignment Node</label>
+                      <input
+                        type="text" value={courtAssignment} onChange={(e) => setCourtAssignment(e.target.value)} required
+                        className={`w-full px-6 py-4 border rounded-2xl outline-none font-bold text-sm uppercase tracking-wider ${
+                          theme === 'light' ? 'bg-white border-slate-200 text-slate-900 focus:border-indigo-600' : 
+                          'bg-[#070b14] border-white/10 text-white focus:border-indigo-500'
+                        }`}
+                        placeholder="E.G. HIGH COURT KARNATAKA"
+                      />
+                    </div>
+                  )}
                 </div>
               </div>
             )}

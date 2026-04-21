@@ -5,7 +5,7 @@ import { generateFIR } from '../utils/generatePDF';
 import { 
   FileText, Calendar, MapPin, User, Clock, 
   Download, ChevronLeft, Shield, Gavel, Briefcase, BookOpen, AlertCircle, ExternalLink,
-  Upload, ShieldCheck, TrendingUp, Sparkles, CheckCircle, Globe, Activity, Lock
+  Upload, ShieldCheck, TrendingUp, Sparkles, CheckCircle, Globe, Activity, Lock, Zap
 } from 'lucide-react';
 import { KnowYourRights } from '../components/KnowYourRights';
 
@@ -36,6 +36,7 @@ interface CaseDetail {
   assignedPolice?: { fullName: string; email: string };
   assignedLawyer?: { fullName: string; email: string };
   assignedJudge?: { fullName: string; email: string };
+  interestedLawyers: any[];
   timeline: { status: string; date: string; notes: string }[];
 }
 
@@ -115,6 +116,19 @@ export const CaseDetails: React.FC = () => {
     if (nw) { nw.document.write(`<iframe src="${fileUrl}" frameborder="0" style="border:0; width:100%; height:100%;" allowfullscreen></iframe>`); }
   };
 
+  const handleExpressInterest = async () => {
+    try {
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/cases/${id}/interest`, {
+        method: 'PUT',
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (res.ok) {
+        alert("Strategic Interest Logged. The citizen has been notified.");
+        fetchCase();
+      }
+    } catch (err) { console.error(err); }
+  };
+
   if (loading) return (
     <div className="flex items-center justify-center min-h-screen bg-[#070b14]">
       <div className="w-16 h-16 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin"></div>
@@ -172,6 +186,15 @@ export const CaseDetails: React.FC = () => {
             </div>
 
             <div className="flex flex-col gap-3 w-full lg:w-auto">
+              {user?.role === 'lawyer' && !caseData.assignedLawyer && !caseData.interestedLawyers.some(l => (l._id || l) === (user?.userId || user?._id)) && (
+                <button 
+                  onClick={handleExpressInterest}
+                  className="px-10 py-5 bg-orange-600 text-white rounded-[2rem] font-black text-[10px] uppercase tracking-[0.2em] hover:bg-orange-700 transition-all shadow-2xl shadow-orange-500/20 flex items-center justify-center gap-3"
+                >
+                  <Zap size={18} />
+                  Express Strategic Interest
+                </button>
+              )}
               {user?.role === 'judge' && !aiSummary && (
                 <button onClick={handleGenerateSummary} disabled={isSummarizing} className="px-10 py-5 bg-indigo-600 text-white rounded-[2rem] font-black text-[10px] uppercase tracking-[0.2em] hover:bg-indigo-700 transition-all shadow-2xl shadow-indigo-500/20 flex items-center justify-center gap-3">
                   {isSummarizing ? <Activity size={18} className="animate-spin" /> : <Sparkles size={18} />}

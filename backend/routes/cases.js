@@ -113,31 +113,33 @@ router.get('/', verifyToken, async (req, res) => {
     if (req.user.role === 'citizen') {
       query.filedBy = req.user.userId;
     } else if (req.user.role === 'police') {
-      // OLD CODE: query.assignedPolice = req.user.userId; 
-      
-      // NEW CODE: Show ALL active cases so the dashboard isn't empty
-      // We will filter "My Cases" vs "Station Cases" on the frontend
       query.status = { $in: ['filed', 'under-investigation', 'in-court', 'resolved'] };
     } else if (req.user.role === 'lawyer') {
-      query.$or = [
-        { assignedLawyer: req.user.userId },
-        { assignedLawyer: { $exists: false } },
-        { assignedLawyer: null }
-      ];
+      const lawyer = await User.findById(req.user.userId);
+      const specialization = lawyer.specialization || 'general';
 
-      // If 'acceptedOnly' is true (used for Chat), show ONLY assigned cases.
-      // Otherwise (for Case Registry), show Assigned + Unassigned + Filed By Me.
-      if (req.query.acceptedOnly === 'true' || req.query.acceptedOnly === true) {
+      if (req.query.marketplace === 'true') {
+        // Marketplace logic: 
+        // 1. Match lawyer's specialization OR 'general'
+        // 2. Not already assigned to anyone
+        // 3. Not already in lawyer's interested list
+        query = {
+          assignedLawyer: { $exists: false },
+          $or: [
+            { type: specialization },
+            { type: 'other' } // 'other' matches 'general'
+          ],
+          interestedLawyers: { $ne: req.user.userId },
+          status: 'pending_lawyer'
+        };
+      } else if (acceptedOnly) {
         query.assignedLawyer = req.user.userId;
       } else {
         query.$or = [
-          { assignedLawyer: req.user.userId },       // 1. Cases assigned to me
-          { assignedLawyer: { $exists: false } },    // 2. Cases with NO lawyer
-          { assignedLawyer: null },                  // 3. (Safety check for null)
-          { filedBy: req.user.userId }               // 4. Cases I FILED myself (NEW)
+          { assignedLawyer: req.user.userId },
+          { filedBy: req.user.userId }
         ];
       }
-
     } else if (req.user.role === 'judge') {
       query.status = { $in: ['filed', 'under-investigation', 'in-court', 'resolved'] };
     }
@@ -145,7 +147,8 @@ router.get('/', verifyToken, async (req, res) => {
     const cases = await Case.find(query)
       .populate('filedBy', 'fullName email')
       .populate('assignedPolice', 'fullName email')
-      .populate('assignedLawyer', 'fullName email')
+      .populate('assignedLawyer', 'fullName email phone specialization')
+      .populate('interestedLawyers', 'fullName email phone specialization licenseNumber')
       .populate('assignedJudge', 'fullName email')
       .sort({ createdAt: -1 });
 
@@ -155,16 +158,115 @@ router.get('/', verifyToken, async (req, res) => {
   }
 });
 
+// NEW: Express Interest (Lawyer)
+router.put('/:id/interest', verifyToken, checkRole(['lawyer']), async (req, res) => {
+  try {
+    const caseItem = await Case.findById(req.params.id);
+    if (!caseItem) return res.status(404).json({ message: 'Case not found' });
+    if (caseItem.assignedLawyer) return res.status(400).json({ message: 'Lawyer already assigned' });
+
+    if (!caseItem.interestedLawyers.includes(req.user.userId)) {
+      caseItem.interestedLawyers.push(req.user.userId);
+      await caseItem.save();
+      
+      // Notify Citizen
+      const citizen = await User.findById(caseItem.filedBy);
+      const lawyer = await User.findById(req.user.userId);
+      
+      const newNotification = new Notification({
+        recipient: citizen._id,
+        message: `⚖️ STRATEGIC SIGNAL: Advocate ${lawyer.fullName} has expressed interest in representing your case #${caseItem.caseNumber}.`,
+        type: 'info'
+      });
+      await newNotification.save();
+    }
+
+    res.json({ message: 'Interest expressed successfully', case: caseItem });
+  } catch (error) {
+    res.status(500).json({ message: 'Error expressing interest', error: error.message });
+  }
+});
+
+// NEW: Appoint Lawyer (Citizen)
+router.put('/:id/appoint-lawyer', verifyToken, checkRole(['citizen']), async (req, res) => {
+  try {
+    const { lawyerId } = req.body;
+    const caseItem = await Case.findById(req.params.id);
+    if (!caseItem) return res.status(404).json({ message: 'Case not found' });
+    
+    // Authorization check
+    if (caseItem.filedBy.toString() !== req.user.userId) {
+      return res.status(403).json({ message: 'Unauthorized' });
+    }
+
+    const otherLawyers = caseItem.interestedLawyers.filter(id => id.toString() !== lawyerId);
+    
+    caseItem.assignedLawyer = lawyerId;
+    caseItem.interestedLawyers = []; // Clear the list
+    caseItem.status = 'pending_lawyer'; 
+
+    caseItem.timeline.push({
+      date: new Date(),
+      status: 'Advocate Appointed',
+      updatedBy: req.user.userId,
+      notes: `Citizen selected their preferred legal counsel.`
+    });
+
+    await caseItem.save();
+
+    // Notify Selected Lawyer
+    const selectedLawyer = await User.findById(lawyerId);
+    await new Notification({
+      recipient: selectedLawyer._id,
+      message: `🎉 MANDATE GRANTED: You have been appointed as the lead counsel for Case #${caseItem.caseNumber}.`,
+      type: 'success'
+    }).save();
+
+    // Notify Other Lawyers (Rejection Signal)
+    for (const lId of otherLawyers) {
+      await new Notification({
+        recipient: lId,
+        message: `⚖️ SYSTEM UPDATE: Another advocate has been appointed for Case #${caseItem.caseNumber}. Your interest node has been closed.`,
+        type: 'info'
+      }).save();
+    }
+
+    res.json({ message: 'Advocate appointed successfully', case: caseItem });
+  } catch (error) {
+    res.status(500).json({ message: 'Error appointing lawyer', error: error.message });
+  }
+});
+
 // 3. Get Single Case
 router.get('/:id', verifyToken, async (req, res) => {
   try {
     const caseItem = await Case.findById(req.params.id)
       .populate('filedBy', 'fullName email')
       .populate('assignedPolice', 'fullName email')
-      .populate('assignedLawyer', 'fullName email')
+      .populate('assignedLawyer', 'fullName email phone specialization')
+      .populate('interestedLawyers', 'fullName email phone specialization licenseNumber')
       .populate('assignedJudge', 'fullName email');
       
     if (!caseItem) return res.status(404).json({ message: 'Case not found' });
+
+    // --- STRATEGIC ACCESS CONTROL ---
+    const isOwner = caseItem.filedBy._id.toString() === req.user.userId;
+    const isAssignedPolice = caseItem.assignedPolice?._id.toString() === req.user.userId;
+    const isAssignedLawyer = caseItem.assignedLawyer?._id.toString() === req.user.userId;
+    const isOfficial = ['police', 'judge'].includes(req.user.role);
+
+    if (req.user.role === 'lawyer' && !isAssignedLawyer && !isOwner) {
+      const lawyer = await User.findById(req.user.userId);
+      const canViewMarketplace = (caseItem.type === lawyer.specialization || caseItem.type === 'civil' || lawyer.specialization === 'general') && !caseItem.assignedLawyer;
+      
+      if (!canViewMarketplace) {
+        return res.status(403).json({ message: 'Unauthorized access to this legal node' });
+      }
+    } else if (req.user.role === 'citizen' && !isOwner) {
+      return res.status(403).json({ message: 'Unauthorized access' });
+    }
+    // --------------------------------
+
     res.json(caseItem);
   } catch (error) {
     res.status(500).json({ message: 'Error fetching case', error: error.message });

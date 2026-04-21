@@ -55,6 +55,7 @@ const caseSchema = new mongoose.Schema({
   filedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
   assignedPolice: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
   assignedLawyer: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+  interestedLawyers: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
   assignedJudge: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
 
   // --- UPDATED DOCUMENTS ARRAY (FOR VERIFICATION) ---
