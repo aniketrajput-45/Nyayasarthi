@@ -42,10 +42,9 @@ const allowedOrigins = [
 
 app.use(cors({
   origin: function (origin, callback) {
-    // Allow requests with no origin (like mobile apps or curl requests)
     if (!origin) return callback(null, true);
     if (allowedOrigins.indexOf(origin) === -1) {
-      return callback(null, true); // Dev mode: allow all. Change to false in prod.
+      return callback(null, true); 
     }
     return callback(null, true);
   },
@@ -53,9 +52,6 @@ app.use(cors({
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization']
 }));
-
-app.use(express.json({ limit: '50mb' }));
-app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
 // --- 2. SOCKET.IO SETUP ---
 const io = new Server(httpServer, {

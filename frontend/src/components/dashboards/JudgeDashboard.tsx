@@ -5,15 +5,12 @@ import {
   Gavel, AlertCircle, CheckCircle, Clock, 
   ArrowRight, Shield, Briefcase, FileText, Lock,
   TrendingUp, Calendar, ChevronRight, Activity, Award, Globe, X,
-  Sun, Moon, Eye
+  Sun, Moon, Eye, MessageSquare, User as UserIcon
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { AssignModal } from '../AssignModal'; 
 import { Notifications } from '../Notifications';
-import { ProfileModel } from '../ProfileModel'; // <-- ADD THIS IMPORT
-import { 
-  Shield, CheckCircle, MessageSquare, BookOpen, User as UserIcon 
-} from 'lucide-react';
+import { ProfileModel } from '../ProfileModel'; 
 
 interface Case {
   _id: string;
