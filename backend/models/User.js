@@ -20,6 +20,9 @@ const userSchema = new mongoose.Schema({
     enum: ['citizen', 'police', 'lawyer', 'judge'],
     required: true,
   },
+  address: { type: String }, // For Citizen: Home. For Police: Station. For Judge: Court.
+  lat: { type: Number },
+  lng: { type: Number },
   phone: String,
   aadhaarNumber: String,
   address: String,

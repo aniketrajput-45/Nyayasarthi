@@ -10,6 +10,10 @@ import {
 import { useNavigate } from 'react-router-dom';
 import { AssignModal } from '../AssignModal'; 
 import { Notifications } from '../Notifications';
+import { ProfileModel } from '../ProfileModel'; // <-- ADD THIS IMPORT
+import { 
+  Shield, CheckCircle, MessageSquare, BookOpen, User as UserIcon 
+} from 'lucide-react';
 
 interface Case {
   _id: string;
