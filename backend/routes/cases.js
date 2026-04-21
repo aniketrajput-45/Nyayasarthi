@@ -186,8 +186,7 @@ router.get('/', verifyToken, async (req, res) => {
     if (req.user.role === 'citizen') {
       query.filedBy = req.user.userId;
     } else if (req.user.role === 'police') {
-
-      query.status = { $in: ['filed', 'under-investigation', 'in-court', 'resolved'] };
+      query.status = { $in: ['filed', 'under-investigation', 'in-court', 'resolved', 'pending_lawyer'] };
     } else if (req.user.role === 'lawyer') {
       const lawyer = await User.findById(req.user.userId);
       const specialization = lawyer.specialization || 'general';
@@ -201,32 +200,17 @@ router.get('/', verifyToken, async (req, res) => {
           assignedLawyer: { $exists: false },
           $or: [
             { type: specialization },
-            { type: 'other' } // 'other' matches 'general'
+            { type: 'other' },
+            { type: 'civil' } // Lawyers can see civil cases too as baseline
           ],
           interestedLawyers: { $ne: req.user.userId },
           status: 'pending_lawyer'
         };
       } else if (acceptedOnly) {
-
-      query.status = { $in: ['filed', 'under-investigation', 'in-court', 'resolved', 'pending_lawyer'] };
-    } else if (req.user.role === 'lawyer') {
-      query.$or = [
-        { assignedLawyer: req.user.userId },
-        { assignedLawyer: { $exists: false } },
-        { assignedLawyer: null }
-      ];
-
-      if (req.query.acceptedOnly === 'true' || req.query.acceptedOnly === true) {
-
         query.assignedLawyer = req.user.userId;
       } else {
         query.$or = [
           { assignedLawyer: req.user.userId },
-
-
-          { assignedLawyer: { $exists: false } },
-          { assignedLawyer: null },
-
           { filedBy: req.user.userId }
         ];
       }

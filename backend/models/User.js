@@ -25,7 +25,6 @@ const userSchema = new mongoose.Schema({
   lng: { type: Number },
   phone: String,
   aadhaarNumber: String,
-  address: String,
   profileImage: String,
   badgeNumber: String,
   licenseNumber: String,

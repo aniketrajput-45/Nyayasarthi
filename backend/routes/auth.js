@@ -48,14 +48,14 @@ router.post('/register', async (req, res) => {
       badgeNumber,
       licenseNumber,
       courtAssignment,
-      specialization
+      specialization: specialization || null // Fix: prevents empty string validation error
     });
     
     await user.save();
 
     const token = jwt.sign(
       { userId: user._id, email: user.email, role: user.role },
-      process.env.JWT_SECRET,
+      process.env.JWT_SECRET || 'NYAYASARTHI_SECRET_NODE_KEY',
       { expiresIn: '7d' }
     );
 
@@ -70,6 +70,7 @@ router.post('/register', async (req, res) => {
       },
     });
   } catch (error) {
+    console.error("REGISTRATION ERROR:", error); // Added for diagnostics
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 });
@@ -94,7 +95,7 @@ router.post('/login', async (req, res) => {
 
     const token = jwt.sign(
       { userId: user._id, email: user.email, role: user.role },
-      process.env.JWT_SECRET,
+      process.env.JWT_SECRET || 'NYAYASARTHI_SECRET_NODE_KEY',
       { expiresIn: '7d' }
     );
 
