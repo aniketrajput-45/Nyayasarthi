@@ -20,7 +20,8 @@ interface AuthContextType {
     aadhaarNumber: string,
     badgeNumber?: string,
     licenseNumber?: string,
-    courtAssignment?: string
+    courtAssignment?: string,
+    specialization?: string
   ) => Promise<void>;
   logout: () => void;
   isAuthenticated: boolean;
@@ -78,7 +79,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     aadhaarNumber: string,
     badgeNumber?: string,
     licenseNumber?: string,
-    courtAssignment?: string
+    courtAssignment?: string,
+    specialization?: string
   ) => {
     try {
       // 1. Send secure request to real backend
@@ -94,7 +96,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           aadhaarNumber,
           badgeNumber,
           licenseNumber,
-          courtAssignment
+          courtAssignment,
+          specialization
         }),
       });
 

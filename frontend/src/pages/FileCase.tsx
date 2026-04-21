@@ -4,8 +4,8 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { 
   Shield, EyeOff, Users, FileText, MapPin, Calendar, 
   Info, CheckCircle, BookOpen, UploadCloud, MousePointer2, 
-  ChevronLeft, Sparkles, Gavel, Globe
-} from 'lucide-react';
+  ChevronLeft, Sparkles, Gavel, Globe, Activity
+  } from 'lucide-react';
 import { VisualTriage } from '../components/VisualTriage';
 
 export const FileCase: React.FC = () => {

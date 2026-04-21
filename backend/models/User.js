@@ -29,6 +29,11 @@ const userSchema = new mongoose.Schema({
   profileImage: String,
   badgeNumber: String,
   licenseNumber: String,
+  specialization: {
+    type: String,
+    enum: ['criminal', 'civil', 'cyber', 'family', 'corporate', 'commercial', 'property', 'general', null],
+    default: null
+  },
   courtAssignment: String,
   casesCount: {
     type: Number,

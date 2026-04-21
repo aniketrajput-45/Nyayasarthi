@@ -9,7 +9,8 @@ router.post('/register', async (req, res) => {
   try {
     const { 
       email, password, fullName, role, 
-      phone, aadhaarNumber, badgeNumber, licenseNumber, courtAssignment 
+      phone, aadhaarNumber, badgeNumber, licenseNumber, courtAssignment,
+      specialization
     } = req.body;
 
     if (!email || !password || !fullName || !role || !phone || !aadhaarNumber) {
@@ -22,6 +23,9 @@ router.post('/register', async (req, res) => {
     }
     if (role === 'lawyer' && !licenseNumber) {
       return res.status(400).json({ message: 'Lawyer license number is required' });
+    }
+    if (role === 'lawyer' && !specialization) {
+      return res.status(400).json({ message: 'Lawyer specialization is required' });
     }
     if (role === 'judge' && !courtAssignment) {
       return res.status(400).json({ message: 'Court assignment is required for Judges' });
@@ -43,7 +47,8 @@ router.post('/register', async (req, res) => {
       aadhaarNumber,
       badgeNumber,
       licenseNumber,
-      courtAssignment
+      courtAssignment,
+      specialization
     });
     
     await user.save();
