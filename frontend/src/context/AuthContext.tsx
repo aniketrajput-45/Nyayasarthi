@@ -5,6 +5,9 @@ interface User {
   email: string;
   fullName: string;
   role: 'citizen' | 'police' | 'lawyer' | 'judge';
+  address?: string;
+  lat?: number;
+  lng?: number;
 }
 
 interface AuthContextType {
@@ -21,7 +24,10 @@ interface AuthContextType {
     badgeNumber?: string,
     licenseNumber?: string,
     courtAssignment?: string,
-    specialization?: string
+    specialization?: string,
+    address?: string,
+    lat?: number,
+    lng?: number
   ) => Promise<void>;
   logout: () => void;
   isAuthenticated: boolean;
@@ -80,7 +86,10 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     badgeNumber?: string,
     licenseNumber?: string,
     courtAssignment?: string,
-    specialization?: string
+    specialization?: string,
+    address?: string,
+    lat?: number,
+    lng?: number
   ) => {
     try {
       // 1. Send secure request to real backend
@@ -97,7 +106,10 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           badgeNumber,
           licenseNumber,
           courtAssignment,
-          specialization
+          specialization,
+          address,
+          lat,
+          lng
         }),
       });
 

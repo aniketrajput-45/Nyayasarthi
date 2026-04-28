@@ -51,6 +51,7 @@ export const LawyerDashboard: React.FC = () => {
   const [upcomingHearings, setUpcomingHearings] = useState<Hearing[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'cases' | 'research' | 'marketplace'>('cases');
+  const [isProfileOpen, setIsProfileOpen] = useState(false);
 
   const [searchQuery, setSearchQuery] = useState('');
   const [isSearching, setIsSearching] = useState(false);
@@ -168,7 +169,9 @@ export const LawyerDashboard: React.FC = () => {
               {theme === 'high-contrast' && <Eye size={18} />}
               <span className="text-[10px] font-black uppercase tracking-widest hidden sm:block">Mode</span>
             </button>
-            <div className={`flex-1 md:flex-none flex items-center gap-2 backdrop-blur-md px-4 py-2.5 rounded-2xl border transition-all ${theme === 'light' ? 'bg-slate-100 border-slate-200' : theme === 'high-contrast' ? 'bg-zinc-900 border-white' : 'bg-white/5 border-white/10'}`}>
+            <div 
+              onClick={() => setIsProfileOpen(true)}
+              className={`flex-1 md:flex-none flex items-center gap-2 backdrop-blur-md px-4 py-2.5 rounded-2xl border transition-all cursor-pointer hover:border-indigo-500/50 ${theme === 'light' ? 'bg-slate-100 border-slate-200' : theme === 'high-contrast' ? 'bg-zinc-900 border-white' : 'bg-white/5 border-white/10'}`}>
                < Globe size={14} className="text-slate-500" />
                <span className={`text-[10px] font-black uppercase tracking-widest ${theme === 'light' ? 'text-slate-700' : 'text-slate-200'}`}>Adv. {user?.fullName}</span>
             </div>
@@ -296,6 +299,12 @@ export const LawyerDashboard: React.FC = () => {
           </div>
         </div>
       </div>
+
+      <ProfileModel 
+        isOpen={isProfileOpen} 
+        onClose={() => setIsProfileOpen(false)} 
+        user={user} 
+      />
     </div>
   );
 };

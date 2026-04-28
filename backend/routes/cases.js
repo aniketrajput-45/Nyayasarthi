@@ -46,6 +46,10 @@ router.post('/file', verifyToken, checkRole(['citizen']), async (req, res) => {
 
     // 1. Get the Citizen filing the case
     const citizen = await User.findById(req.user.userId);
+    if (!citizen) {
+      console.error("CASE FILING ERROR: Citizen node not found for ID:", req.user.userId);
+      return res.status(404).json({ message: 'User node not found in judicial registry.' });
+    }
     
     // SMART ROUTING: Use Form GPS first. If missing, fallback to Registered Profile GPS.
     const routingLat = lat || citizen.lat;
@@ -88,13 +92,17 @@ router.post('/file', verifyToken, checkRole(['citizen']), async (req, res) => {
       nearestJudge = allJudges[0];
     }
 
-    const caseNumber = await generateCaseNumber();
+    // FIX: Generate caseNumber BEFORE using it in new Case and Notifications
+    const generatedCaseNum = await generateCaseNumber();
+
+    // Fix: Handle empty strings and ensure valid types for all fields
+    const validIncidentDate = (incidentDate && incidentDate !== "") ? new Date(incidentDate) : new Date();
+    const validLawyerId = (selectedLawyerId && selectedLawyerId !== "" && selectedLawyerId !== "null") ? selectedLawyerId : null;
+    const validBnsSection = (bnsSection && bnsSection.trim() !== "") ? bnsSection.trim() : null;
+    const finalLocation = (location && location.trim() !== "") ? location.trim() : (citizen.address || "Unknown Location");
 
     const timelineRules = {
-      civil: 90,
-      criminal: 60,
-      cyber: 45,
-      corporate: 120
+      civil: 90, criminal: 60, cyber: 45, corporate: 120, commercial: 90, property: 90
     };
     
     const daysToSolve = timelineRules[type] || 60; 
@@ -102,50 +110,95 @@ router.post('/file', verifyToken, checkRole(['citizen']), async (req, res) => {
     deadlineDate.setDate(deadlineDate.getDate() + daysToSolve);
 
     const newCase = new Case({
-      caseNumber,
-      title,
-      description,
-      type,
+      caseNumber: generatedCaseNum,
+      title: title.trim(),
+      description: description.trim(),
+      type: type || 'other',
       filedBy: req.user.userId,
-      location: location || citizen.address || "Unknown Location",
-      incidentDate,
+      location: finalLocation,
+      incidentDate: validIncidentDate,
       documents: documents || [],
-      
-      // AUTO-ASSIGNMENT LOGIC
       assignedPolice: nearestPolice ? nearestPolice._id : null,
       assignedJudge: nearestJudge ? nearestJudge._id : null,
-      assignedLawyer: selectedLawyerId || null,
-      status: selectedLawyerId ? 'pending_lawyer' : 'filed', 
-      
-      isProBono: isProBono || false,
-      isAnonymous: isAnonymous || false,
-      shareWithLegalAid: shareWithLegalAid || false,
+      assignedLawyer: validLawyerId,
+      status: 'complaint', // Start as a digital complaint
+      isProBono: !!isProBono,
+      isAnonymous: !!isAnonymous,
+      shareWithLegalAid: !!shareWithLegalAid,
       deadlineDate, 
-
-      bnsSection: bnsSection || null,
-      aiSuggestedEvidence: aiSuggestedEvidence || [],
-
+      bnsSection: validBnsSection,
+      aiSuggestedEvidence: Array.isArray(aiSuggestedEvidence) ? aiSuggestedEvidence : [],
       timeline: [{
         date: new Date(),
-        status: selectedLawyerId ? 'pending_lawyer' : 'filed',
+        status: 'complaint',
         updatedBy: req.user.userId,
-        notes: `Case filed and automatically routed to nearest jurisdiction based on GPS.`
+        notes: `Digital Complaint filed and routed to nearest station for verification.`
       }]
     });
 
     await newCase.save();
 
-    // 5. Send Notifications to assigned parties
+    // 5. Send Notifications using the correctly defined caseNumber
     const notifications = [];
-    if (nearestPolice) notifications.push({ recipient: nearestPolice._id, message: `New case #${newCase.caseNumber} routed to your station based on jurisdiction.`, type: 'case' });
-    if (nearestJudge) notifications.push({ recipient: nearestJudge._id, message: `New case #${newCase.caseNumber} routed to your court.`, type: 'case' });
-    if (selectedLawyerId) notifications.push({ recipient: selectedLawyerId, message: `Citizen requested your representation for case #${newCase.caseNumber}.`, type: 'case' });
+    if (nearestPolice) notifications.push({ recipient: nearestPolice._id, message: `📋 NEW COMPLAINT: #${generatedCaseNum} requires verification.`, type: 'alert' });
+    
+    if(notifications.length > 0) {
+      try {
+        await Notification.insertMany(notifications);
+      } catch (e) {
+        console.warn("Notification failure:", e.message);
+      }
+    }
 
-    if(notifications.length > 0) await Notification.insertMany(notifications);
-
-    res.status(201).json({ message: 'Case auto-routed successfully', case: newCase });
+    res.status(201).json({ message: 'Complaint filed successfully', case: newCase });
   } catch (error) {
-    res.status(500).json({ message: 'Error filing case', error: error.message });
+    console.error("CRITICAL CASE FILING ERROR:", error); 
+    res.status(500).json({ 
+      message: 'Submission Rejected', 
+      error: error.message
+    });
+  }
+});
+
+// NEW: Register FIR (Police only)
+router.put('/:id/register-fir', verifyToken, checkRole(['police']), async (req, res) => {
+  try {
+    const caseItem = await Case.findById(req.params.id);
+    if (!caseItem) return res.status(404).json({ message: 'Case not found' });
+    
+    if (caseItem.status !== 'complaint') {
+      return res.status(400).json({ message: 'Only complaints can be converted to FIR' });
+    }
+
+    caseItem.status = 'fir_filed';
+    caseItem.timeline.push({
+      date: new Date(),
+      status: 'fir_filed',
+      updatedBy: req.user.userId,
+      notes: `Official FIR Registered by Police Station. Case broadcasted to Legal Marketplace.`
+    });
+
+    await caseItem.save();
+
+    // Notify Citizen
+    await new Notification({
+      recipient: caseItem.filedBy,
+      message: `✅ FIR REGISTERED: Case #${caseItem.caseNumber} has been officially registered. Advocates can now express interest.`,
+      type: 'success'
+    }).save();
+
+    // If a lawyer was already assigned/selected by citizen during filing, notify them too
+    if (caseItem.assignedLawyer) {
+      await new Notification({
+        recipient: caseItem.assignedLawyer,
+        message: `📋 FIR REGISTERED: Case #${caseItem.caseNumber} (assigned to you) has been officially registered by the police.`,
+        type: 'info'
+      }).save();
+    }
+
+    res.json({ message: 'FIR registered successfully', case: caseItem });
+  } catch (error) {
+    res.status(500).json({ message: 'Error registering FIR', error: error.message });
   }
 });
 
@@ -186,25 +239,29 @@ router.get('/', verifyToken, async (req, res) => {
     if (req.user.role === 'citizen') {
       query.filedBy = req.user.userId;
     } else if (req.user.role === 'police') {
-      query.status = { $in: ['filed', 'under-investigation', 'in-court', 'resolved', 'pending_lawyer'] };
+      // Police should see cases assigned to them OR unassigned cases in their station's jurisdiction
+      // For now, filtering by assignedPolice to ensure privacy
+      query = {
+        assignedPolice: req.user.userId,
+        status: { $in: ['complaint', 'fir_filed', 'under-investigation', 'in-court', 'resolved', 'pending_lawyer', 'filed'] }
+      };
     } else if (req.user.role === 'lawyer') {
       const lawyer = await User.findById(req.user.userId);
       const specialization = lawyer.specialization || 'general';
 
       if (req.query.marketplace === 'true') {
         // Marketplace logic: 
-        // 1. Match lawyer's specialization OR 'general'
-        // 2. Not already assigned to anyone
-        // 3. Not already in lawyer's interested list
+        // 1. Not already accepted
+        // 2. Not already in lawyer's interested list
+        // 3. Match lawyer's specialization OR 'general'/'civil'
         query = {
-          assignedLawyer: { $exists: false },
           $or: [
-            { type: specialization },
-            { type: 'other' },
-            { type: 'civil' } // Lawyers can see civil cases too as baseline
+            { assignedLawyer: { $exists: false } },
+            { assignedLawyer: null }
           ],
+          type: { $in: [specialization, 'general', 'civil', 'other'] },
           interestedLawyers: { $ne: req.user.userId },
-          status: 'pending_lawyer'
+          status: { $in: ['pending_lawyer', 'fir_filed'] }
         };
       } else if (acceptedOnly) {
         query.assignedLawyer = req.user.userId;
@@ -475,6 +532,7 @@ router.put('/:id/submit-to-court', verifyToken, checkRole(['lawyer']), async (re
     await caseItem.save();
     res.json({ message: 'Case submitted to Judge successfully', case: caseItem });
   } catch (error) {
+    console.error("SUBMIT TO COURT ERROR:", error);
     res.status(500).json({ message: 'Error submitting case', error: error.message });
   }
 });

@@ -27,12 +27,31 @@ export const Register: React.FC = () => {
   const [licenseNumber, setLicenseNumber] = useState('');
   const [courtAssignment, setCourtAssignment] = useState('');
   const [specialization, setSpecialization] = useState('');
+  const [address, setAddress] = useState('');
+  const [coords, setCoords] = useState<{lat: number, lng: number} | null>(null);
   const [role, setRole] = useState('citizen');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
   const { register } = useAuth();
   const { theme, toggleTheme } = useTheme();
+
+  const handleCaptureLocation = () => {
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        async (pos) => {
+          const { latitude, longitude } = pos.coords;
+          setCoords({ lat: latitude, lng: longitude });
+          try {
+            const res = await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${latitude}&lon=${longitude}&format=json`);
+            const data = await res.json();
+            if (data.display_name) setAddress(data.display_name);
+          } catch (e) {}
+        },
+        () => setError('GPS Access Denied')
+      );
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -44,22 +63,24 @@ export const Register: React.FC = () => {
     }
 
     setLoading(true);
-
-    try {
-      await register(
-        email, 
-        password, 
-        fullName, 
-        role,
-        phone,
-        aadhaarNumber,
-        badgeNumber,
-        licenseNumber,
-        courtAssignment,
-        specialization
-      );
-      navigate('/dashboard');
-    } catch (err) {
+  try {
+    await register(
+      email, 
+      password, 
+      fullName, 
+      role,
+      phone,
+      aadhaarNumber,
+      badgeNumber,
+      licenseNumber,
+      courtAssignment,
+      specialization,
+      address,
+      coords?.lat,
+      coords?.lng
+    );
+    navigate('/dashboard');
+  } catch (err) {
       setError(err instanceof Error ? err.message : 'Registration failed');
     } finally {
       setLoading(false);
@@ -237,18 +258,49 @@ export const Register: React.FC = () => {
                 
                 <div className="space-y-6">
                   {role === 'police' && (
-                    <div className="space-y-2">
-                      <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] ml-2">Badge Number</label>
-                      <input
-                        type="text" value={badgeNumber} onChange={(e) => setBadgeNumber(e.target.value)} required
-                        className={`w-full px-6 py-4 border rounded-2xl outline-none font-bold text-sm uppercase tracking-widest ${
-                          theme === 'light' ? 'bg-white border-slate-200 text-slate-900 focus:border-indigo-600' : 
-                          'bg-[#070b14] border-white/10 text-white focus:border-indigo-500'
-                        }`}
-                        placeholder="POL-00000"
-                      />
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                      <div className="space-y-2">
+                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] ml-2">Badge Number</label>
+                        <input
+                          type="text" value={badgeNumber} onChange={(e) => setBadgeNumber(e.target.value)} required
+                          className={`w-full px-6 py-4 border rounded-2xl outline-none font-bold text-sm uppercase tracking-widest ${
+                            theme === 'light' ? 'bg-white border-slate-200 text-slate-900 focus:border-indigo-600' : 
+                            'bg-[#070b14] border-white/10 text-white focus:border-indigo-500'
+                          }`}
+                          placeholder="POL-00000"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] ml-2">Station Coordinates</label>
+                        <button
+                          type="button" onClick={handleCaptureLocation}
+                          className={`w-full px-6 py-4 border rounded-2xl outline-none font-black text-[10px] uppercase tracking-widest flex items-center justify-center gap-3 transition-all ${
+                            coords 
+                              ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-500' 
+                              : (theme === 'light' ? 'bg-white border-slate-200 text-indigo-600 hover:border-indigo-600' : 'bg-[#070b14] border-white/10 text-indigo-400 hover:border-indigo-500')
+                          }`}
+                        >
+                          {coords ? <CheckCircle2 size={16}/> : <MapPin size={16}/>}
+                          {coords ? 'LOCATION SECURED' : 'CAPTURE STATION GPS'}
+                        </button>
+                      </div>
                     </div>
                   )}
+                  
+                  {/* Shared Address/Station Field for all Official Roles */}
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] ml-2">
+                      {role === 'police' ? 'Station Address' : role === 'judge' ? 'Chambers/Court Address' : 'Office Address'}
+                    </label>
+                    <input
+                      type="text" value={address} onChange={(e) => setAddress(e.target.value)} required
+                      className={`w-full px-6 py-4 border rounded-2xl outline-none font-bold text-sm uppercase tracking-widest ${
+                        theme === 'light' ? 'bg-white border-slate-200 text-slate-900 focus:border-indigo-600' : 
+                        'bg-[#070b14] border-white/10 text-white focus:border-indigo-500'
+                      }`}
+                      placeholder="ENTER FULL PHYSICAL ADDRESS"
+                    />
+                  </div>
                   {role === 'lawyer' && (
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                       <div className="space-y-2">

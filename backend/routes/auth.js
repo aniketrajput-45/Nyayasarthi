@@ -10,7 +10,7 @@ router.post('/register', async (req, res) => {
     const { 
       email, password, fullName, role, 
       phone, aadhaarNumber, badgeNumber, licenseNumber, courtAssignment,
-      specialization
+      specialization, address, lat, lng
     } = req.body;
 
     if (!email || !password || !fullName || !role || !phone || !aadhaarNumber) {
@@ -48,7 +48,10 @@ router.post('/register', async (req, res) => {
       badgeNumber,
       licenseNumber,
       courtAssignment,
-      specialization: specialization || null // Fix: prevents empty string validation error
+      specialization: specialization || null,
+      address,
+      lat,
+      lng
     });
     
     await user.save();

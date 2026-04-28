@@ -4,8 +4,8 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { 
   Shield, EyeOff, Users, FileText, MapPin, Calendar, 
   Info, CheckCircle, BookOpen, UploadCloud, MousePointer2, 
-  ChevronLeft, Sparkles, Gavel, Globe, Activity
-  } from 'lucide-react';
+  ChevronLeft, Sparkles, Gavel, Globe, Activity, AlertCircle 
+} from 'lucide-react';
 import { VisualTriage } from '../components/VisualTriage';
 
 export const FileCase: React.FC = () => {
@@ -15,14 +15,17 @@ export const FileCase: React.FC = () => {
   const prefillData = location.state as any; 
 
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [success, setSuccess] = useState(false);
   const [showTriage, setShowTriage] = useState(!prefillData);
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
+  const [coords, setCoords] = useState<{lat: number, lng: number} | null>(null);
   
   const [formData, setFormData] = useState({
     title: prefillData?.title || '',
     description: prefillData?.description || '', 
     type: prefillData?.type || 'civil',          
-    location: prefillData?.location || '',
+    location: prefillData?.location || user?.address || '',
     incidentDate: prefillData?.incidentDate || '',
     isAnonymous: false,
     shareWithLegalAid: false,
@@ -30,6 +33,33 @@ export const FileCase: React.FC = () => {
     bnsSection: prefillData?.bnsSection || '',                  
     aiSuggestedEvidence: prefillData?.requiredEvidence || []    
   });
+
+  // Automatically try to get GPS on mount for routing and pre-filling address
+  useEffect(() => {
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        async (pos) => {
+          const { latitude, longitude } = pos.coords;
+          setCoords({ lat: latitude, lng: longitude });
+          
+          // If location is still empty, try to get a human readable address from GPS
+          if (!formData.location) {
+            try {
+              const res = await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${latitude}&lon=${longitude}&format=json`);
+              const data = await res.json();
+              if (data.display_name) {
+                setFormData(prev => ({ ...prev, location: data.display_name }));
+              }
+            } catch (e) {
+              console.warn("Reverse geocoding failed.");
+            }
+          }
+        },
+        () => console.warn("GPS access denied for case filing."),
+        { timeout: 5000 }
+      );
+    }
+  }, []);
 
   const handleTriageSelect = (category: string, title: string) => {
     setFormData(prev => ({
@@ -75,6 +105,7 @@ export const FileCase: React.FC = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setError('');
     setLoading(true);
     try {
       const uploadedDocuments = await Promise.all(
@@ -83,14 +114,38 @@ export const FileCase: React.FC = () => {
           return { fileName: file.name, fileUrl: base64Data, verificationStatus: 'pending' };
         })
       );
-      const payload = { ...formData, documents: uploadedDocuments };
+      
+      const payload = { 
+        ...formData, 
+        documents: uploadedDocuments,
+        lat: coords?.lat,
+        lng: coords?.lng
+      };
+
       const res = await fetch(`${import.meta.env.VITE_API_URL}/cases/file`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify(payload) 
       });
-      if (res.ok) { navigate('/cases'); }
-    } catch (err) { console.error(err); } finally { setLoading(false); }
+
+      const data = await res.json();
+
+      if (res.ok) { 
+        setSuccess(true);
+        setTimeout(() => navigate('/dashboard'), 2000);
+      } else {
+        // Fix: Extract detailed validation errors if they exist
+        const errorMsg = data.details && data.details.length > 0 
+          ? `${data.message}: ${data.details.join(', ')}` 
+          : (data.error || data.message || 'Filing rejected by registry');
+        throw new Error(errorMsg);
+      }
+    } catch (err) { 
+      console.error(err); 
+      setError(err instanceof Error ? err.message : 'A neural link error occurred.');
+    } finally { 
+      setLoading(false); 
+    }
   };
 
   return (
@@ -118,6 +173,26 @@ export const FileCase: React.FC = () => {
           <h1 className="text-4xl lg:text-5xl font-black text-white tracking-tighter uppercase leading-tight relative z-10">Initiate Judicial <br/><span className="text-indigo-500">Record Entry</span></h1>
           <p className="mt-4 text-slate-400 text-sm font-bold uppercase tracking-widest max-w-lg leading-relaxed relative z-10">Securely submit your grievance to the digital court node. All data is end-to-end encrypted.</p>
         </header>
+
+        {error && (
+          <div className="p-6 bg-red-500/10 border border-red-500/20 rounded-[2rem] flex items-start gap-4 animate-in slide-in-from-top-2 duration-500">
+            <AlertCircle className="w-6 h-6 text-red-500 shrink-0 mt-0.5" />
+            <div>
+              <p className="text-red-500 font-black text-sm uppercase tracking-tight">Submission Interrupted</p>
+              <p className="text-red-400/80 text-xs font-bold uppercase mt-1 tracking-widest leading-relaxed">{error}</p>
+            </div>
+          </div>
+        )}
+
+        {success && (
+          <div className="p-6 bg-emerald-500/10 border border-emerald-500/20 rounded-[2rem] flex items-start gap-4 animate-in zoom-in-95 duration-500">
+            <CheckCircle className="w-6 h-6 text-emerald-500 shrink-0 mt-0.5" />
+            <div>
+              <p className="text-emerald-500 font-black text-sm uppercase tracking-tight">Node Entry Successful</p>
+              <p className="text-emerald-400/80 text-xs font-bold uppercase mt-1 tracking-widest leading-relaxed">Case file successfully committed to the judicial registry. Redirecting to dashboard...</p>
+            </div>
+          </div>
+        )}
 
         <form onSubmit={handleSubmit} className="space-y-12 relative z-10">
           
