@@ -48,7 +48,7 @@ router.put('/:userId', verifyToken, async (req, res) => {
       return res.status(403).json({ message: 'Unauthorized' });
     }
 
-    const { phone, address, badgeNumber, licenseNumber, courtAssignment, profileImage } = req.body;
+    const { phone, address, badgeNumber, licenseNumber, courtAssignment, profileImage, lat, lng } = req.body;
 
     const updateData = {};
     if (phone) updateData.phone = phone;
@@ -57,6 +57,8 @@ router.put('/:userId', verifyToken, async (req, res) => {
     if (licenseNumber) updateData.licenseNumber = licenseNumber;
     if (courtAssignment) updateData.courtAssignment = courtAssignment;
     if (profileImage) updateData.profileImage = profileImage;
+    if (lat !== undefined) updateData.lat = lat;
+    if (lng !== undefined) updateData.lng = lng;
 
     const user = await User.findByIdAndUpdate(req.params.userId, updateData, { new: true }).select('-password');
 

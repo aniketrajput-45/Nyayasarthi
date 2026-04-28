@@ -11,31 +11,73 @@ interface ProfileModalProps {
 export const ProfileModel: React.FC<ProfileModalProps> = ({ isOpen, onClose, user }) => {
   const { theme } = useTheme();
   const [fullProfile, setFullProfile] = useState<any>(null);
+  const [updating, setUpdating] = useState(false);
+
+  const fetchFullProfile = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const apiUrl = import.meta.env.VITE_API_URL?.replace('/api', '') + '/api' || 'http://localhost:5000/api';
+      const userId = user.id || user._id || user.userId;
+      
+      const res = await fetch(`${apiUrl}/users/${userId}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      
+      if (res.ok) {
+        const data = await res.json();
+        setFullProfile(data);
+      }
+    } catch (error) {
+      console.error("Failed to fetch full profile");
+    }
+  };
 
   // NEW: Fetch the complete profile from the database when the modal opens
   useEffect(() => {
     if (isOpen && user) {
-      const fetchFullProfile = async () => {
-        try {
-          const token = localStorage.getItem('token');
-          const apiUrl = import.meta.env.VITE_API_URL?.replace('/api', '') + '/api' || 'http://localhost:5000/api';
-          const userId = user.id || user._id || user.userId;
-          
-          const res = await fetch(`${apiUrl}/users/${userId}`, {
-            headers: { Authorization: `Bearer ${token}` }
-          });
-          
-          if (res.ok) {
-            const data = await res.json();
-            setFullProfile(data);
-          }
-        } catch (error) {
-          console.error("Failed to fetch full profile");
-        }
-      };
       fetchFullProfile();
     }
   }, [isOpen, user]);
+
+  const handleUpdateLocation = async () => {
+    if (!navigator.geolocation) return alert("Geolocation not supported");
+    
+    setUpdating(true);
+    navigator.geolocation.getCurrentPosition(async (pos) => {
+      try {
+        const { latitude, longitude } = pos.coords;
+        const token = localStorage.getItem('token');
+        const apiUrl = import.meta.env.VITE_API_URL?.replace('/api', '') + '/api' || 'http://localhost:5000/api';
+        const userId = user.id || user._id || user.userId;
+
+        // Get address from coordinates
+        const geoRes = await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${latitude}&lon=${longitude}&format=json`);
+        const geoData = await geoRes.json();
+        const address = geoData.display_name;
+
+        const res = await fetch(`${apiUrl}/users/${userId}`, {
+          method: 'PUT',
+          headers: { 
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}` 
+          },
+          body: JSON.stringify({ lat: latitude, lng: longitude, address })
+        });
+
+        if (res.ok) {
+          alert("Location updated successfully");
+          fetchFullProfile();
+        }
+      } catch (error) {
+        alert("Failed to update location");
+      } finally {
+        setUpdating(false);
+      }
+    }, () => {
+      alert("GPS Access Denied");
+      setUpdating(false);
+    });
+  };
 
   if (!isOpen || !user) return null;
 
@@ -159,6 +201,19 @@ export const ProfileModel: React.FC<ProfileModalProps> = ({ isOpen, onClose, use
                 </p>
                 {displayUser.lat && displayUser.lng && (
                    <p className="text-[8px] font-mono text-slate-500 mt-2">GPS: {displayUser.lat}, {displayUser.lng}</p>
+                )}
+                {(displayUser.role === 'police' || displayUser.role === 'lawyer') && (
+                  <button 
+                    onClick={handleUpdateLocation}
+                    disabled={updating}
+                    className={`mt-4 px-4 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all flex items-center gap-2 ${
+                      theme === 'light' 
+                        ? 'bg-indigo-600 text-white hover:bg-indigo-700' 
+                        : 'bg-indigo-500/20 text-indigo-400 border border-indigo-500/30 hover:bg-indigo-500/30'
+                    }`}
+                  >
+                    {updating ? 'SYCHRONIZING...' : 'UPDATE LIVE LOCATION'}
+                  </button>
                 )}
               </div>
             </div>

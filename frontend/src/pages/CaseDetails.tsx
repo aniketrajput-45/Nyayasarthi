@@ -32,10 +32,10 @@ interface CaseDetail {
     fileHash?: string;
     deviceMetadata?: string;
   }[];
-  filedBy: { fullName: string; email: string };
-  assignedPolice?: { fullName: string; email: string };
-  assignedLawyer?: { fullName: string; email: string };
-  assignedJudge?: { fullName: string; email: string };
+  filedBy: { _id: string; fullName: string; email: string };
+  assignedPolice?: { _id: string; fullName: string; email: string };
+  assignedLawyer?: { _id: string; fullName: string; email: string };
+  assignedJudge?: { _id: string; fullName: string; email: string };
   interestedLawyers: any[];
   timeline: { status: string; date: string; notes: string }[];
 }
@@ -107,6 +107,57 @@ export const CaseDetails: React.FC = () => {
         body: JSON.stringify({ documentId: docId, status }),
       });
       if (response.ok) { fetchCase(); }
+    } catch (err) { console.error(err); }
+  };
+
+  const handleSubmitToCourt = async () => {
+    try {
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/cases/${id}/submit-to-court`, {
+        method: 'PUT',
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      const data = await res.json();
+      if (res.ok) {
+        alert("Case Successfully Submitted to Court Registry.");
+        fetchCase();
+      } else {
+        alert(`Failed to submit: ${data.message || 'Unknown error'}`);
+      }
+    } catch (err) { 
+      console.error(err); 
+      alert("Network error: Could not connect to judicial node.");
+    }
+  };
+
+  const handleClaimCase = async () => {
+    try {
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/cases/${id}/claim-lawyer`, {
+        method: 'PUT',
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      const data = await res.json();
+      if (res.ok) {
+        alert("Case Accepted. You are now the assigned Counsel.");
+        fetchCase();
+      } else {
+        alert(`Failed to accept mandate: ${data.message || 'Unknown error'}`);
+      }
+    } catch (err) { 
+      console.error(err); 
+      alert("Network error: Could not reach registry.");
+    }
+  };
+
+  const handleRegisterFIR = async () => {
+    try {
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/cases/${id}/register-fir`, {
+        method: 'PUT',
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (res.ok) {
+        alert("FIR Registered Successfully. Case moved to Legal Marketplace.");
+        fetchCase();
+      }
     } catch (err) { console.error(err); }
   };
 
@@ -186,6 +237,33 @@ export const CaseDetails: React.FC = () => {
             </div>
 
             <div className="flex flex-col gap-3 w-full lg:w-auto">
+              {user?.role === 'lawyer' && (caseData.assignedLawyer?._id || caseData.assignedLawyer) === (user?.userId || user?._id) && (caseData.status === 'pending_lawyer' || caseData.status === 'fir_filed') && (
+                <button 
+                  onClick={handleSubmitToCourt}
+                  className="px-10 py-5 bg-indigo-600 text-white rounded-[2rem] font-black text-[10px] uppercase tracking-[0.2em] hover:bg-indigo-700 transition-all shadow-2xl shadow-indigo-500/20 flex items-center justify-center gap-3"
+                >
+                  <Gavel size={18} />
+                  Submit Case to Court Registry
+                </button>
+              )}
+              {user?.role === 'lawyer' && !caseData.assignedLawyer && (
+                <button 
+                  onClick={handleClaimCase}
+                  className="px-10 py-5 bg-emerald-600 text-white rounded-[2rem] font-black text-[10px] uppercase tracking-[0.2em] hover:bg-emerald-700 transition-all shadow-2xl shadow-emerald-500/20 flex items-center justify-center gap-3"
+                >
+                  <Briefcase size={18} />
+                  Accept Full Mandate
+                </button>
+              )}
+              {user?.role === 'police' && caseData.status === 'complaint' && (
+                <button 
+                  onClick={handleRegisterFIR}
+                  className="px-10 py-5 bg-emerald-600 text-white rounded-[2rem] font-black text-[10px] uppercase tracking-[0.2em] hover:bg-emerald-700 transition-all shadow-2xl shadow-emerald-500/20 flex items-center justify-center gap-3"
+                >
+                  <ShieldCheck size={18} />
+                  Register Official FIR
+                </button>
+              )}
               {user?.role === 'lawyer' && !caseData.assignedLawyer && !caseData.interestedLawyers.some(l => (l._id || l) === (user?.userId || user?._id)) && (
                 <button 
                   onClick={handleExpressInterest}

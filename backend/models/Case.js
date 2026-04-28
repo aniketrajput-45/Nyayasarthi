@@ -21,8 +21,8 @@ const caseSchema = new mongoose.Schema({
   },
   status: {
     type: String,
-    enum: ['pending_lawyer', 'filed', 'under-investigation', 'in-court', 'resolved'], 
-    default: 'pending_lawyer',
+    enum: ['complaint', 'fir_filed', 'pending_lawyer', 'filed', 'under-investigation', 'in-court', 'resolved'], 
+    default: 'complaint',
   },
   priority: {
     type: String,
